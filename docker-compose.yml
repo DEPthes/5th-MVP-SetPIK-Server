@@ -1,31 +1,35 @@
 services:
-  postgres:
-    image: postgres:${POSTGRES_VERSION:-16-alpine}
-    container_name: setpik-postgres
+  mysql:
+    image: mysql:${MYSQL_VERSION:-8.4}
+    container_name: setpik-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-setpik}
-      POSTGRES_USER: ${DB_USERNAME:-setpik}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-setpik}
+      MYSQL_DATABASE: ${DB_NAME:-setpik}
+      MYSQL_USER: ${DB_USERNAME:-setpik}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-setpik}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-3306}:3306"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-setpik} -d ${DB_NAME:-setpik}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u${DB_USERNAME:-setpik} -p${DB_PASSWORD:-setpik} --silent"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  adminer:
-    image: adminer:4
-    container_name: setpik-adminer
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: setpik-phpmyadmin
     restart: unless-stopped
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
     ports:
       - "8081:8080"
 
 volumes:
-  postgres-data:
+  mysql-data:
