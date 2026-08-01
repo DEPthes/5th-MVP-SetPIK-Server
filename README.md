@@ -1,5 +1,7 @@
 # 5th-MVP-SetPIK-Server
 
+팀 개발 규칙과 패키지 구조는 [CONTRIBUTING.md](CONTRIBUTING.md)를 먼저 확인해 주세요.
+
 SetPIK 서버 공동개발 환경 레포입니다.
 
 팀원이 Windows와 macOS를 함께 사용하더라도 같은 방식으로 개발할 수 있도록 아래 기준으로 환경을 통일했습니다.

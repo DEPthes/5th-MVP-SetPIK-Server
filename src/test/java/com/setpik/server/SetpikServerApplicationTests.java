@@ -31,4 +31,19 @@ class SetpikServerApplicationTests {
 			.andExpect(jsonPath("$.service").value("setpik-server"));
 	}
 
+	@Test
+	void protectedEndpointRequiresAuthentication() throws Exception {
+		mockMvc.perform(get("/api/v1/users/me"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.isSuccess").value(false))
+			.andExpect(jsonPath("$.code").value(2001))
+			.andExpect(jsonPath("$.result").doesNotExist());
+	}
+
+	@Test
+	void swaggerApiDocsArePublic() throws Exception {
+		mockMvc.perform(get("/v3/api-docs"))
+			.andExpect(status().isOk());
+	}
+
 }
