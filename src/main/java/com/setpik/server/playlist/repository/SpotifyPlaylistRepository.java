@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface SpotifyPlaylistRepository extends JpaRepository<SpotifyPlaylist, Long> {
 	List<SpotifyPlaylist> findByUserIdAndDeletedAtIsNull(Long userId);
 	Optional<SpotifyPlaylist> findByPlaylistIdAndDeletedAtIsNull(Long playlistId);
+	Optional<SpotifyPlaylist> findByUserIdAndSpotifyPlaylistId(Long userId, String spotifyPlaylistId);
 }

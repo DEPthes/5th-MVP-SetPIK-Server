@@ -45,6 +45,19 @@ public class Track extends BaseEntity {
 	protected Track() {
 	}
 
+	public Track(String spotifyTrackId, String trackName, String albumName,
+				 String albumImageUrl, String spotifyTrackUrl, String previewUrl,
+				 Integer durationMs, Boolean isPlayable) {
+		this.spotifyTrackId = spotifyTrackId;
+		this.trackName = trackName;
+		this.albumName = albumName;
+		this.albumImageUrl = albumImageUrl;
+		this.spotifyTrackUrl = spotifyTrackUrl;
+		this.previewUrl = previewUrl;
+		this.durationMs = durationMs;
+		this.isPlayable = isPlayable;
+	}
+
 	public Long getTrackId() {
 		return trackId;
 	}

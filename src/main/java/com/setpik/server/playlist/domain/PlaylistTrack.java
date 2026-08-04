@@ -33,6 +33,14 @@ public class PlaylistTrack {
 	protected PlaylistTrack() {
 	}
 
+	public PlaylistTrack(Long playlistId, Long trackId, Integer trackPosition,
+						 LocalDateTime addedAt) {
+		this.playlistId = playlistId;
+		this.trackId = trackId;
+		this.trackPosition = trackPosition;
+		this.addedAt = addedAt;
+	}
+
 	public Long getPlaylistTrackId() {
 		return playlistTrackId;
 	}

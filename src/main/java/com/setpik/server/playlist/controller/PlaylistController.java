@@ -3,13 +3,12 @@ package com.setpik.server.playlist.controller;
 import com.setpik.server.common.api.ApiResponse;
 import com.setpik.server.playlist.dto.PlaylistDetailResponse;
 import com.setpik.server.playlist.dto.PlaylistSummaryResponse;
+import com.setpik.server.playlist.dto.PlaylistSyncResponse;
 import com.setpik.server.playlist.dto.TrackResponse;
 import com.setpik.server.playlist.service.PlaylistService;
 import java.util.List;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/playlists")
@@ -22,6 +21,12 @@ public class PlaylistController {
 
 	public PlaylistController(PlaylistService playlistService) {
 		this.playlistService = playlistService;
+	}
+
+	@PostMapping("/sync")
+	public ApiResponse<PlaylistSyncResponse> sync() {
+		return ApiResponse.created("플레이리스트 동기화가 완료되었습니다.",
+			playlistService.sync(TEMP_USER_ID));
 	}
 
 	@GetMapping
