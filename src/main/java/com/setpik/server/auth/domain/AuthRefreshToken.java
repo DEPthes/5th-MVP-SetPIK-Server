@@ -50,6 +50,21 @@ public class AuthRefreshToken extends CreatedAtEntity {
 		return refreshToken;
 	}
 
+	/** 만료되거나 폐기되지 않은 Refresh Token인지 확인한다. */
+	public boolean isUsableAt(LocalDateTime now) {
+		return revokedAt == null && expiresAt.isAfter(now);
+	}
+
+	/** 재발급에 정상 사용된 마지막 시각을 기록한다. */
+	public void markUsed(LocalDateTime usedAt) {
+		this.lastUsedAt = usedAt;
+	}
+
+	/** 로그아웃 시 더 이상 사용할 수 없도록 폐기한다. */
+	public void revoke(LocalDateTime revokedAt) {
+		this.revokedAt = revokedAt;
+	}
+
 	public Long getRefreshTokenId() {
 		return refreshTokenId;
 	}
