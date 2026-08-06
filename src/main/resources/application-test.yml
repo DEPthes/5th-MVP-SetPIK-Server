@@ -16,3 +16,15 @@ spring:
 logging:
   level:
     root: WARN
+
+spotify:
+  oauth:
+    client-id: test-client-id
+    client-secret: test-client-secret
+    redirect-uri: http://localhost:8080/api/v1/auth/spotify/callback
+
+setpik:
+  auth:
+    token-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    success-redirect-uri: http://localhost:3000/oauth/success
+    failure-redirect-uri: http://localhost:3000/oauth/failure
