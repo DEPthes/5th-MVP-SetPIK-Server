@@ -28,3 +28,7 @@ setpik:
     token-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     success-redirect-uri: http://localhost:3000/oauth/success
     failure-redirect-uri: http://localhost:3000/oauth/failure
+  jwt:
+    secret: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    access-token-expiration: 30m
+    issuer: setpik-server

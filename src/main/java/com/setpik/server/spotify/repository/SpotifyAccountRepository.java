@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SpotifyAccountRepository extends JpaRepository<SpotifyAccount, Long> {
 
 	Optional<SpotifyAccount> findBySpotifyUserId(String spotifyUserId);
+
+	Optional<SpotifyAccount> findByUserId(Long userId);
 }

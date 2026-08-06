@@ -163,6 +163,8 @@ phpMyAdmin 접속 정보:
 - `OAUTH_SUCCESS_REDIRECT_URI`: Spotify 로그인 성공 후 이동할 프론트엔드 주소
 - `OAUTH_FAILURE_REDIRECT_URI`: Spotify 로그인 실패 후 이동할 프론트엔드 주소
 - `AUTH_COOKIE_SECURE`: HTTPS 환경에서는 `true`, 로컬 HTTP 환경에서는 `false`
+- `JWT_SECRET`: Access Token 서명에 사용하는 Base64 32바이트 이상 비밀키
+- `ACCESS_TOKEN_EXPIRATION`: Access Token 유효기간(기본값 `30m`)
 
 ## Flyway
 

@@ -7,7 +7,7 @@ import com.setpik.server.auth.exception.SpotifyOAuthCallbackException;
 import com.setpik.server.auth.service.SpotifyAuthService;
 import com.setpik.server.auth.service.SpotifyOAuthCallbackService;
 import com.setpik.server.auth.support.SpotifyOAuthStateCookieFactory;
-import com.setpik.server.auth.support.SpotifyRefreshTokenCookieFactory;
+import com.setpik.server.auth.support.RefreshTokenCookieFactory;
 import com.setpik.server.common.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,14 +35,14 @@ public class SpotifyAuthController {
 	private final SpotifyAuthService spotifyAuthService;
 	private final SpotifyOAuthCallbackService spotifyOAuthCallbackService;
 	private final SpotifyOAuthStateCookieFactory stateCookieFactory;
-	private final SpotifyRefreshTokenCookieFactory refreshTokenCookieFactory;
+	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 	private final SetpikAuthProperties authProperties;
 
 	public SpotifyAuthController(
 		SpotifyAuthService spotifyAuthService,
 		SpotifyOAuthCallbackService spotifyOAuthCallbackService,
 		SpotifyOAuthStateCookieFactory stateCookieFactory,
-		SpotifyRefreshTokenCookieFactory refreshTokenCookieFactory,
+		RefreshTokenCookieFactory refreshTokenCookieFactory,
 		SetpikAuthProperties authProperties
 	) {
 		this.spotifyAuthService = spotifyAuthService;
