@@ -37,6 +37,19 @@ public class AuthRefreshToken extends CreatedAtEntity {
 	protected AuthRefreshToken() {
 	}
 
+	/** 쿠키 원문 대신 해시만 저장하는 SetPIK Refresh Token을 발급한다. */
+	public static AuthRefreshToken issue(
+		String tokenHash,
+		LocalDateTime expiresAt,
+		Long userId
+	) {
+		AuthRefreshToken refreshToken = new AuthRefreshToken();
+		refreshToken.tokenHash = tokenHash;
+		refreshToken.expiresAt = expiresAt;
+		refreshToken.userId = userId;
+		return refreshToken;
+	}
+
 	public Long getRefreshTokenId() {
 		return refreshTokenId;
 	}

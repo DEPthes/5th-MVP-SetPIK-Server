@@ -33,6 +33,20 @@ public class SpotifyAccountScope {
 	protected SpotifyAccountScope() {
 	}
 
+	/** Spotify가 실제로 승인해 준 scope를 계정에 연결한다. */
+	public static SpotifyAccountScope grant(
+		String scopeName,
+		Long spotifyAccountId,
+		LocalDateTime grantedAt
+	) {
+		SpotifyAccountScope scope = new SpotifyAccountScope();
+		scope.scopeName = scopeName;
+		scope.spotifyAccountId = spotifyAccountId;
+		scope.isGranted = true;
+		scope.grantedAt = grantedAt;
+		return scope;
+	}
+
 	public String getScopeName() {
 		return scopeName;
 	}

@@ -31,6 +31,19 @@ public class User extends BaseEntity {
 	protected User() {
 	}
 
+	/** Spotify 최초 로그인 시 활성 회원을 생성한다. */
+	public static User createActive(LocalDateTime loginAt) {
+		User user = new User();
+		user.status = UserStatus.ACTIVE;
+		user.lastLoginAt = loginAt;
+		return user;
+	}
+
+	/** 기존 회원이 다시 로그인한 시각을 갱신한다. */
+	public void recordLogin(LocalDateTime loginAt) {
+		this.lastLoginAt = loginAt;
+	}
+
 	public Long getUserId() {
 		return userId;
 	}

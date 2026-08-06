@@ -10,6 +10,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -39,7 +41,12 @@ public class GlobalExceptionHandler {
 			.body(ApiResponse.failure(ErrorCode.INVALID_REQUEST, detail));
 	}
 
-	@ExceptionHandler({ConstraintViolationException.class, HttpMessageNotReadableException.class})
+	@ExceptionHandler({
+		ConstraintViolationException.class,
+		HttpMessageNotReadableException.class,
+		MissingServletRequestParameterException.class,
+		MethodArgumentTypeMismatchException.class
+	})
 	public ResponseEntity<ApiResponse<Void>> handleInvalidRequest(Exception exception) {
 		return ResponseEntity.badRequest()
 			.body(ApiResponse.failure(ErrorCode.INVALID_REQUEST, null));

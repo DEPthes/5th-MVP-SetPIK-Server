@@ -60,6 +60,57 @@ public class SpotifyAccount {
 	protected SpotifyAccount() {
 	}
 
+	/** 최초 Spotify 로그인 정보를 내부 계정으로 생성한다. */
+	public static SpotifyAccount connect(
+		String spotifyUserId,
+		String spotifyEmail,
+		String displayName,
+		String profileImageUrl,
+		String accessTokenEncrypted,
+		String refreshTokenEncrypted,
+		LocalDateTime tokenExpiresAt,
+		Long userId,
+		LocalDateTime connectedAt
+	) {
+		SpotifyAccount account = new SpotifyAccount();
+		account.spotifyUserId = spotifyUserId;
+		account.spotifyEmail = spotifyEmail;
+		account.displayName = displayName;
+		account.profileImageUrl = profileImageUrl;
+		account.accessTokenEncrypted = accessTokenEncrypted;
+		account.refreshTokenEncrypted = refreshTokenEncrypted;
+		account.tokenExpiresAt = tokenExpiresAt;
+		account.connectionStatus = ConnectionStatus.CONNECTED;
+		account.connectedAt = connectedAt;
+		account.lastProfileSyncedAt = connectedAt;
+		account.userId = userId;
+		return account;
+	}
+
+	/** 재로그인 시 Spotify 프로필과 토큰 정보를 최신 상태로 갱신한다. */
+	public void reconnect(
+		String spotifyEmail,
+		String displayName,
+		String profileImageUrl,
+		String accessTokenEncrypted,
+		String refreshTokenEncrypted,
+		LocalDateTime tokenExpiresAt,
+		LocalDateTime connectedAt
+	) {
+		this.spotifyEmail = spotifyEmail;
+		this.displayName = displayName;
+		this.profileImageUrl = profileImageUrl;
+		this.accessTokenEncrypted = accessTokenEncrypted;
+		if (refreshTokenEncrypted != null) {
+			this.refreshTokenEncrypted = refreshTokenEncrypted;
+		}
+		this.tokenExpiresAt = tokenExpiresAt;
+		this.connectionStatus = ConnectionStatus.CONNECTED;
+		this.connectedAt = connectedAt;
+		this.disconnectedAt = null;
+		this.lastProfileSyncedAt = connectedAt;
+	}
+
 	public Long getSpotifyAccountId() {
 		return spotifyAccountId;
 	}

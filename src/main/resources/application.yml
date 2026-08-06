@@ -39,3 +39,30 @@ management:
     health:
       probes:
         enabled: true
+
+spotify:
+  oauth:
+    authorization-uri: https://accounts.spotify.com/authorize
+    client-id: ${SPOTIFY_CLIENT_ID:}
+    client-secret: ${SPOTIFY_CLIENT_SECRET:}
+    redirect-uri: ${SPOTIFY_REDIRECT_URI:http://127.0.0.1:8080/api/v1/auth/spotify/callback}
+    scopes:
+      - user-read-email
+      - user-read-private
+      - playlist-read-private
+      - playlist-read-collaborative
+      - playlist-modify-private
+      - playlist-modify-public
+    state-cookie-name: setpik_spotify_oauth_state
+    state-cookie-max-age: 10m
+    secure-cookie: ${SPOTIFY_COOKIE_SECURE:false}
+
+setpik:
+  auth:
+    token-encryption-key: ${TOKEN_ENCRYPTION_KEY:}
+    refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION:14d}
+    refresh-cookie-name: refreshToken
+    refresh-cookie-path: /api/v1/auth
+    secure-cookie: ${AUTH_COOKIE_SECURE:false}
+    success-redirect-uri: ${OAUTH_SUCCESS_REDIRECT_URI:http://localhost:3000/oauth/success}
+    failure-redirect-uri: ${OAUTH_FAILURE_REDIRECT_URI:http://localhost:3000/oauth/failure}
