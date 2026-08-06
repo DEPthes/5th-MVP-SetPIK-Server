@@ -4,6 +4,7 @@ import com.setpik.server.common.security.RestAccessDeniedHandler;
 import com.setpik.server.common.security.RestAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -23,6 +24,11 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable())
 			.sessionManagement(session -> session
 				.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+			// Spring Security 표준 필터가 Bearer JWT의 서명과 만료시간을 검증한다.
+			.oauth2ResourceServer(oauth2 -> oauth2
+				.jwt(Customizer.withDefaults())
+				.authenticationEntryPoint(authenticationEntryPoint)
+				.accessDeniedHandler(accessDeniedHandler))
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(
 					"/api/v1/health",
