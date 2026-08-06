@@ -6,6 +6,8 @@ import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.member.dto.UserProfileResponse;
 import com.setpik.server.member.service.UserProfileService;
+import com.setpik.server.spotify.dto.SpotifyConnectionResponse;
+import com.setpik.server.spotify.service.SpotifyConnectionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -23,9 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
 	private final UserProfileService userProfileService;
+	private final SpotifyConnectionService spotifyConnectionService;
 
-	public UserController(UserProfileService userProfileService) {
+	public UserController(
+		UserProfileService userProfileService,
+		SpotifyConnectionService spotifyConnectionService
+	) {
 		this.userProfileService = userProfileService;
+		this.spotifyConnectionService = spotifyConnectionService;
 	}
 
 	@Operation(
@@ -75,6 +82,60 @@ public class UserController {
 		// Controller는 검증이 끝난 JWT에서 사용자 식별자만 추출한다.
 		Long userId = parseUserId(jwt.getSubject());
 		return ResponseEntity.ok(ApiResponse.success(userProfileService.getMyProfile(userId)));
+	}
+
+	@Operation(
+		summary = "Spotify 연동 상태 조회",
+		description = "Spotify 연결 상태, 토큰 만료 시각, 동의한 scope 목록을 조회합니다."
+	)
+	@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "200",
+			description = "Spotify 연동 상태 조회 성공",
+			content = @Content(
+				mediaType = "application/json",
+				examples = @ExampleObject(value = """
+					{
+					  "isSuccess": true,
+					  "code": 1000,
+					  "message": "요청에 성공했습니다.",
+					  "result": {
+					    "connected": true,
+					    "connectionStatus": "CONNECTED",
+					    "tokenExpiresAt": "2026-07-28T11:00:00+09:00",
+					    "scopes": [
+					      {
+					        "scopeName": "user-read-email",
+					        "isGranted": true
+					      },
+					      {
+					        "scopeName": "playlist-read-private",
+					        "isGranted": true
+					      }
+					    ]
+					  }
+					}
+					""")
+			)
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "400",
+			description = "요청 값 오류"
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "401",
+			description = "인증 실패"
+		)
+	})
+	@GetMapping("/me/spotify-connection")
+	public ResponseEntity<ApiResponse<SpotifyConnectionResponse>> getSpotifyConnection(
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		Long userId = parseUserId(jwt.getSubject());
+		return ResponseEntity.ok(ApiResponse.success(
+			spotifyConnectionService.getConnection(userId)
+		));
 	}
 
 	private Long parseUserId(String subject) {
