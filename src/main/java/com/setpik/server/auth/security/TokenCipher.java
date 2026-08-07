@@ -52,4 +52,30 @@ public class TokenCipher {
 			throw new IllegalStateException("Spotify 토큰 암호화에 실패했습니다.", exception);
 		}
 	}
+
+	/** DB에 암호화해 저장한 Spotify 토큰을 외부 API 호출 직전에만 복호화한다. */
+	public String decrypt(String encryptedText) {
+		if (encryptedText == null || encryptedText.isBlank()) {
+			return null;
+		}
+
+		try {
+			byte[] combined = Base64.getDecoder().decode(encryptedText);
+			if (combined.length <= IV_LENGTH) {
+				throw new IllegalStateException("암호화된 Spotify 토큰 형식이 올바르지 않습니다.");
+			}
+
+			ByteBuffer buffer = ByteBuffer.wrap(combined);
+			byte[] iv = new byte[IV_LENGTH];
+			buffer.get(iv);
+			byte[] encrypted = new byte[buffer.remaining()];
+			buffer.get(encrypted);
+
+			Cipher cipher = Cipher.getInstance(ALGORITHM);
+			cipher.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(AUTH_TAG_LENGTH, iv));
+			return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
+		} catch (GeneralSecurityException | IllegalArgumentException exception) {
+			throw new IllegalStateException("Spotify 토큰 복호화에 실패했습니다.", exception);
+		}
+	}
 }

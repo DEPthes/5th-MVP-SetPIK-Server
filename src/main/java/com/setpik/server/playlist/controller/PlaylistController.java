@@ -1,22 +1,28 @@
 package com.setpik.server.playlist.controller;
 
 import com.setpik.server.common.api.ApiResponse;
+import com.setpik.server.common.config.SwaggerConfig;
+import com.setpik.server.common.exception.BusinessException;
+import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.playlist.dto.PlaylistDetailResponse;
-import com.setpik.server.playlist.dto.PlaylistSummaryResponse;
+import com.setpik.server.playlist.dto.PlaylistPageResponse;
 import com.setpik.server.playlist.dto.PlaylistSyncResponse;
-import com.setpik.server.playlist.dto.TrackResponse;
+import com.setpik.server.playlist.dto.TrackPageResponse;
 import com.setpik.server.playlist.service.PlaylistService;
-import java.util.List;
-
-import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/playlists")
+@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
 public class PlaylistController {
-
-	// TODO: 인증 기능 병합 후 인증 주체에서 userId를 가져오도록 교체
-	private static final Long TEMP_USER_ID = 1L;
-
 	private final PlaylistService playlistService;
 
 	public PlaylistController(PlaylistService playlistService) {
@@ -24,23 +30,50 @@ public class PlaylistController {
 	}
 
 	@PostMapping("/sync")
-	public ApiResponse<PlaylistSyncResponse> sync() {
-		return ApiResponse.created("플레이리스트 동기화가 완료되었습니다.",
-			playlistService.sync(TEMP_USER_ID));
+	public ApiResponse<PlaylistSyncResponse> sync(@AuthenticationPrincipal Jwt jwt) {
+		return ApiResponse.success("플레이리스트 동기화가 완료되었습니다.",
+			playlistService.sync(userId(jwt)));
 	}
 
 	@GetMapping
-	public ApiResponse<List<PlaylistSummaryResponse>> getMyPlaylists() {
-		return ApiResponse.success(playlistService.getMyPlaylists(TEMP_USER_ID));
+	public ApiResponse<PlaylistPageResponse> getMyPlaylists(
+		@RequestParam(defaultValue = "0") int page,
+		@RequestParam(defaultValue = "20") int size,
+		@RequestParam(defaultValue = "playlistName,asc") String sort,
+		@RequestParam(required = false) String keyword,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		return ApiResponse.success(
+			playlistService.getMyPlaylists(userId(jwt), page, size, sort, keyword)
+		);
 	}
 
 	@GetMapping("/{playlistId}")
-	public ApiResponse<PlaylistDetailResponse> getPlaylistDetail(@PathVariable Long playlistId) {
-		return ApiResponse.success(playlistService.getPlaylistDetail(TEMP_USER_ID, playlistId));
+	public ApiResponse<PlaylistDetailResponse> getPlaylistDetail(
+		@PathVariable Long playlistId,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		return ApiResponse.success(playlistService.getPlaylistDetail(userId(jwt), playlistId));
 	}
 
 	@GetMapping("/{playlistId}/tracks")
-	public ApiResponse<List<TrackResponse>> getPlaylistTracks(@PathVariable Long playlistId) {
-		return ApiResponse.success(playlistService.getPlaylistTracks(TEMP_USER_ID, playlistId));
+	public ApiResponse<TrackPageResponse> getPlaylistTracks(
+		@PathVariable Long playlistId,
+		@RequestParam(defaultValue = "0") int page,
+		@RequestParam(defaultValue = "20") int size,
+		@RequestParam(defaultValue = "trackPosition,asc") String sort,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		return ApiResponse.success(
+			playlistService.getPlaylistTracks(userId(jwt), playlistId, page, size, sort)
+		);
+	}
+
+	private Long userId(Jwt jwt) {
+		try {
+			return Long.valueOf(jwt.getSubject());
+		} catch (NumberFormatException exception) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
 	}
 }

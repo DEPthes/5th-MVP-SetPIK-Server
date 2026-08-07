@@ -1,22 +1,27 @@
 package com.setpik.server.playlist.dto;
 
 import com.setpik.server.playlist.domain.SpotifyPlaylist;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 public record PlaylistSummaryResponse(
 	Long playlistId,
+	String spotifyPlaylistId,
 	String playlistName,
-	String coverImageUrl,
 	Integer trackCount,
-	LocalDateTime lastSyncedAt
+	String coverImageUrl,
+	OffsetDateTime lastSyncedAt
 ) {
 	public static PlaylistSummaryResponse from(SpotifyPlaylist playlist) {
 		return new PlaylistSummaryResponse(
 			playlist.getPlaylistId(),
+			playlist.getSpotifyPlaylistId(),
 			playlist.getPlaylistName(),
-			playlist.getCoverImageUrl(),
 			playlist.getTrackCount(),
-			playlist.getLastSyncedAt()
+			playlist.getCoverImageUrl(),
+			playlist.getLastSyncedAt() == null
+				? null
+				: playlist.getLastSyncedAt().atOffset(ZoneOffset.ofHours(9))
 		);
 	}
 }

@@ -26,6 +26,12 @@ public class TrackArtist {
 	protected TrackArtist() {
 	}
 
+	public TrackArtist(Long trackId, Long artistId, Short artistOrder) {
+		this.trackId = trackId;
+		this.artistId = artistId;
+		this.artistOrder = artistOrder;
+	}
+
 	public Long getTrackId() {
 		return trackId;
 	}

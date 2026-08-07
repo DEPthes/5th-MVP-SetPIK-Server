@@ -1,25 +1,29 @@
 package com.setpik.server.playlist.dto;
 
 import com.setpik.server.playlist.domain.Track;
+import com.setpik.server.playlist.domain.PlaylistTrack;
+import java.util.List;
 
 public record TrackResponse(
-	Long trackId,
+	Long playlistTrackId,
 	Integer trackPosition,
 	String trackName,
-	String albumName,
+	String spotifyTrackId,
 	String albumImageUrl,
-	String spotifyTrackUrl,
-	Integer durationMs
+	List<TrackArtistResponse> artists
 ) {
-	public static TrackResponse of(Track track, Integer position) {
+	public static TrackResponse of(
+		PlaylistTrack playlistTrack,
+		Track track,
+		List<TrackArtistResponse> artists
+	) {
 		return new TrackResponse(
-			track.getTrackId(),
-			position,
+			playlistTrack.getPlaylistTrackId(),
+			playlistTrack.getTrackPosition(),
 			track.getTrackName(),
-			track.getAlbumName(),
+			track.getSpotifyTrackId(),
 			track.getAlbumImageUrl(),
-			track.getSpotifyTrackUrl(),
-			track.getDurationMs()
+			artists
 		);
 	}
 }

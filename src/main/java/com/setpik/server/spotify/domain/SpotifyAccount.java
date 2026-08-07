@@ -111,6 +111,20 @@ public class SpotifyAccount {
 		this.lastProfileSyncedAt = connectedAt;
 	}
 
+	/** Spotify 토큰 갱신 결과를 저장하며, 새 Refresh Token이 없으면 기존 값을 유지한다. */
+	public void refreshTokens(
+		String accessTokenEncrypted,
+		String refreshTokenEncrypted,
+		LocalDateTime tokenExpiresAt
+	) {
+		this.accessTokenEncrypted = accessTokenEncrypted;
+		if (refreshTokenEncrypted != null) {
+			this.refreshTokenEncrypted = refreshTokenEncrypted;
+		}
+		this.tokenExpiresAt = tokenExpiresAt;
+		this.connectionStatus = ConnectionStatus.CONNECTED;
+	}
+
 	public Long getSpotifyAccountId() {
 		return spotifyAccountId;
 	}
