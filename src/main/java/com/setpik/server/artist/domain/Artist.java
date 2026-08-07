@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Locale;
 
 /** Flyway의 Artists 테이블을 그대로 매핑한다. */
 @Entity
@@ -43,6 +44,30 @@ public class Artist extends BaseEntity {
 	private Boolean spotifyAvailable;
 
 	protected Artist() {
+	}
+
+	public Artist(
+		String spotifyArtistId,
+		String artistName,
+		String spotifyArtistUrl
+	) {
+		this.spotifyArtistId = spotifyArtistId;
+		this.artistName = artistName;
+		this.normalizedName = normalize(artistName);
+		this.spotifyArtistUrl = spotifyArtistUrl;
+		this.spotifyAvailable = true;
+	}
+
+	/** 플레이리스트 동기화 응답에 포함된 Spotify 아티스트 정보를 갱신한다. */
+	public void syncFromSpotify(String artistName, String spotifyArtistUrl) {
+		this.artistName = artistName;
+		this.normalizedName = normalize(artistName);
+		this.spotifyArtistUrl = spotifyArtistUrl;
+		this.spotifyAvailable = true;
+	}
+
+	private static String normalize(String artistName) {
+		return artistName.trim().toLowerCase(Locale.ROOT);
 	}
 
 	public Long getArtistId() {

@@ -55,6 +55,35 @@ public class SpotifyPlaylist extends BaseEntity {
 	protected SpotifyPlaylist() {
 	}
 
+	public SpotifyPlaylist(String spotifyPlaylistId, String playlistName, String description,
+						   String coverImageUrl, Boolean isPublic, String ownerSpotifyUserId,
+						   String snapshotId, Integer trackCount, Long userId) {
+		this.spotifyPlaylistId = spotifyPlaylistId;
+		this.playlistName = playlistName;
+		this.description = description;
+		this.coverImageUrl = coverImageUrl;
+		this.isPublic = isPublic;
+		this.ownerSpotifyUserId = ownerSpotifyUserId;
+		this.snapshotId = snapshotId;
+		this.trackCount = trackCount;
+		this.userId = userId;
+		this.lastSyncedAt = LocalDateTime.now();
+	}
+
+	public void syncFrom(String playlistName, String description, String coverImageUrl,
+						 Boolean isPublic, String ownerSpotifyUserId, String snapshotId,
+						 Integer trackCount) {
+		this.playlistName = playlistName;
+		this.description = description;
+		this.coverImageUrl = coverImageUrl;
+		this.isPublic = isPublic;
+		this.ownerSpotifyUserId = ownerSpotifyUserId;
+		this.snapshotId = snapshotId;
+		this.trackCount = trackCount;
+		this.lastSyncedAt = LocalDateTime.now();
+		this.deletedAt = null;
+	}
+
 	public Long getPlaylistId() {
 		return playlistId;
 	}

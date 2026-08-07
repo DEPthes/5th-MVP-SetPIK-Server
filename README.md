@@ -129,6 +129,7 @@ chmod +x ./gradlew
 
 - [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health)
 - [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
+- [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 
 DB 관련 기본 포트:
 
@@ -153,6 +154,17 @@ phpMyAdmin 접속 정보:
 - `DB_HOST`
 - `SERVER_PORT`
 - `MYSQL_VERSION`
+- `SPOTIFY_CLIENT_ID`: Spotify 개발자 앱 Client ID
+- `SPOTIFY_CLIENT_SECRET`: Spotify 개발자 앱 Client Secret
+- `SPOTIFY_REDIRECT_URI`: Spotify Dashboard에 등록한 백엔드 콜백 URI. 로컬에서는 `localhost` 대신 `127.0.0.1`을 사용
+- `SPOTIFY_COOKIE_SECURE`: HTTPS 환경에서는 `true`, 로컬 HTTP 환경에서는 `false`
+- `TOKEN_ENCRYPTION_KEY`: Spotify 토큰 암호화용 Base64 32바이트 키
+- `REFRESH_TOKEN_EXPIRATION`: SetPIK Refresh Token 유효기간(기본값 `14d`)
+- `OAUTH_SUCCESS_REDIRECT_URI`: Spotify 로그인 성공 후 이동할 프론트엔드 주소
+- `OAUTH_FAILURE_REDIRECT_URI`: Spotify 로그인 실패 후 이동할 프론트엔드 주소
+- `AUTH_COOKIE_SECURE`: HTTPS 환경에서는 `true`, 로컬 HTTP 환경에서는 `false`
+- `JWT_SECRET`: Access Token 서명에 사용하는 Base64 32바이트 이상 비밀키
+- `ACCESS_TOKEN_EXPIRATION`: Access Token 유효기간(기본값 `30m`)
 
 ## Flyway
 
