@@ -7,12 +7,16 @@ import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.performance.domain.Performance;
 import com.setpik.server.performance.domain.PerformanceArtist;
+import com.setpik.server.performance.domain.PerformanceMatch;
+import com.setpik.server.performance.domain.PerformanceMatchArtist;
 import com.setpik.server.performance.domain.Venue;
-import com.setpik.server.performance.dto.PerformanceArtistResponse;
+import com.setpik.server.performance.dto.MatchedArtistResponse;
 import com.setpik.server.performance.dto.PerformanceDetailResponse;
-import com.setpik.server.performance.dto.PerformanceSummaryResponse;
+import com.setpik.server.performance.dto.PerformanceRecommendationResponse;
 import com.setpik.server.performance.dto.TicketScheduleResponse;
 import com.setpik.server.performance.repository.PerformanceArtistRepository;
+import com.setpik.server.performance.repository.PerformanceMatchArtistRepository;
+import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.TicketScheduleRepository;
 import com.setpik.server.performance.repository.VenueRepository;
@@ -37,35 +41,25 @@ public class PerformanceService {
 	private final TicketScheduleRepository ticketScheduleRepository;
 	private final PerformanceArtistRepository performanceArtistRepository;
 	private final ArtistRepository artistRepository;
+	private final PerformanceMatchRepository performanceMatchRepository;
+	private final PerformanceMatchArtistRepository performanceMatchArtistRepository;
 
 	public PerformanceService(
 		PerformanceRepository performanceRepository,
 		VenueRepository venueRepository,
 		TicketScheduleRepository ticketScheduleRepository,
 		PerformanceArtistRepository performanceArtistRepository,
-		ArtistRepository artistRepository
+		ArtistRepository artistRepository,
+		PerformanceMatchRepository performanceMatchRepository,
+		PerformanceMatchArtistRepository performanceMatchArtistRepository
 	) {
 		this.performanceRepository = performanceRepository;
 		this.venueRepository = venueRepository;
 		this.ticketScheduleRepository = ticketScheduleRepository;
 		this.performanceArtistRepository = performanceArtistRepository;
 		this.artistRepository = artistRepository;
-	}
-
-	public PageResponse<PerformanceSummaryResponse> getPerformances(int page, int size) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "startDate"));
-		Page<Performance> performances = performanceRepository.findByIsDeletedFalse(pageable);
-
-		Map<Long, Venue> venueById = venueRepository
-			.findAllById(performances.getContent().stream().map(Performance::getVenueId).distinct().toList())
-			.stream()
-			.collect(Collectors.toMap(Venue::getVenueId, Function.identity()));
-
-		List<PerformanceSummaryResponse> content = performances.getContent().stream()
-			.map(performance -> PerformanceSummaryResponse.of(performance, venueById.get(performance.getVenueId())))
-			.toList();
-
-		return PageResponse.of(content, performances);
+		this.performanceMatchRepository = performanceMatchRepository;
+		this.performanceMatchArtistRepository = performanceMatchArtistRepository;
 	}
 
 	public PerformanceDetailResponse getPerformance(Long performanceId) {
@@ -85,19 +79,48 @@ public class PerformanceService {
 			.toList();
 	}
 
-	public List<PerformanceArtistResponse> getArtists(Long performanceId) {
-		ensurePerformanceExists(performanceId);
+	public PageResponse<PerformanceRecommendationResponse> getRecommendedPerformances(
+		Long analysisId, int page, int size
+	) {
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "matchPriority"));
+		Page<PerformanceMatch> matches = performanceMatchRepository.findByAnalysisIdOrderByMatchPriorityAsc(analysisId, pageable);
 
-		List<PerformanceArtist> performanceArtists =
-			performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(performanceId);
+		Map<Long, Performance> performanceById = performanceRepository
+			.findAllById(matches.getContent().stream().map(PerformanceMatch::getPerformanceId).distinct().toList())
+			.stream()
+			.collect(Collectors.toMap(Performance::getPerformanceId, Function.identity()));
+
+		List<PerformanceRecommendationResponse> content = matches.getContent().stream()
+			.map(match -> PerformanceRecommendationResponse.of(
+				match,
+				performanceById.get(match.getPerformanceId()).getPerformanceName()
+			))
+			.toList();
+
+		return PageResponse.of(content, matches);
+	}
+
+	public List<MatchedArtistResponse> getMatchedArtists(Long analysisId, Long performanceId) {
+		PerformanceMatch match = performanceMatchRepository.findByAnalysisIdAndPerformanceId(analysisId, performanceId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+
+		List<PerformanceMatchArtist> matchArtists = performanceMatchArtistRepository.findByMatchId(match.getMatchId());
 
 		Map<Long, Artist> artistById = artistRepository
-			.findAllById(performanceArtists.stream().map(PerformanceArtist::getArtistId).toList())
+			.findAllById(matchArtists.stream().map(PerformanceMatchArtist::getArtistId).toList())
 			.stream()
 			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
 
-		return performanceArtists.stream()
-			.map(performanceArtist -> PerformanceArtistResponse.of(performanceArtist, artistById.get(performanceArtist.getArtistId())))
+		Map<Long, Boolean> headlinerByArtistId = performanceArtistRepository
+			.findByPerformanceIdOrderByLineupOrderAsc(performanceId).stream()
+			.collect(Collectors.toMap(PerformanceArtist::getArtistId, PerformanceArtist::getIsHeadliner));
+
+		return matchArtists.stream()
+			.map(matchArtist -> MatchedArtistResponse.of(
+				matchArtist,
+				artistById.get(matchArtist.getArtistId()),
+				headlinerByArtistId.getOrDefault(matchArtist.getArtistId(), false)
+			))
 			.toList();
 	}
 
