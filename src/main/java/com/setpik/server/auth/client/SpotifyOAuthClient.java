@@ -52,6 +52,30 @@ public class SpotifyOAuthClient {
 		}
 	}
 
+	/** 만료된 Spotify Access Token을 저장된 Refresh Token으로 갱신한다. */
+	public SpotifyTokenResponse refreshAccessToken(String refreshToken) {
+		MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+		formData.add("grant_type", "refresh_token");
+		formData.add("refresh_token", refreshToken);
+
+		try {
+			SpotifyTokenResponse response = restClient.post()
+				.uri(TOKEN_URI)
+				.headers(headers -> headers.setBasicAuth(properties.clientId(), properties.clientSecret()))
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+				.body(formData)
+				.retrieve()
+				.body(SpotifyTokenResponse.class);
+			validateTokenResponse(response);
+			return response;
+		} catch (RestClientResponseException exception) {
+			logSpotifyError("토큰 갱신", exception);
+			throw new SpotifyApiException("Spotify 토큰 갱신에 실패했습니다.", exception);
+		} catch (RestClientException exception) {
+			throw new SpotifyApiException("Spotify 토큰 갱신에 실패했습니다.", exception);
+		}
+	}
+
 	/** 발급받은 Access Token으로 Spotify 회원 프로필을 조회한다. */
 	public SpotifyProfileResponse getCurrentUser(String accessToken) {
 		try {

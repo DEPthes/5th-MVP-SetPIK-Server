@@ -27,5 +27,7 @@ class TokenCipherTest {
 		assertThat(first).isNotEqualTo("spotify-token");
 		assertThat(second).isNotEqualTo("spotify-token");
 		assertThat(first).isNotEqualTo(second);
+		assertThat(tokenCipher.decrypt(first)).isEqualTo("spotify-token");
+		assertThat(tokenCipher.decrypt(second)).isEqualTo("spotify-token");
 	}
 }
