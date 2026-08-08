@@ -10,4 +10,7 @@ import java.util.List;
 public interface PerformanceArtistRepository extends JpaRepository<PerformanceArtist, PerformanceArtistId> {
 
 	List<PerformanceArtist> findByPerformanceIdOrderByLineupOrderAsc(Long performanceId);
+
+	List<PerformanceArtist> findByPerformanceIdIn(List<Long> performanceIds);
+	void deleteByPerformanceId(Long performanceId);
 }

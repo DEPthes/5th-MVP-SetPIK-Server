@@ -10,7 +10,6 @@ public record TicketScheduleResponse(
 	String saleType,
 	OffsetDateTime opensAt,
 	OffsetDateTime closesAt,
-	String bookingUrl,
 	String saleStatus
 ) {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -22,7 +21,6 @@ public record TicketScheduleResponse(
 			ticketSchedule.getSaleType().name(),
 			ticketSchedule.getOpensAt() == null ? null : ticketSchedule.getOpensAt().atZone(KST).toOffsetDateTime(),
 			ticketSchedule.getClosesAt() == null ? null : ticketSchedule.getClosesAt().atZone(KST).toOffsetDateTime(),
-			ticketSchedule.getBookingUrl(),
 			ticketSchedule.getSaleStatus().name()
 		);
 	}

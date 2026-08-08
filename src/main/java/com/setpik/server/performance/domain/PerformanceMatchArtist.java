@@ -26,6 +26,14 @@ public class PerformanceMatchArtist {
 	protected PerformanceMatchArtist() {
 	}
 
+	public static PerformanceMatchArtist create(Long matchId, Long artistId, Integer occurrenceCount) {
+		PerformanceMatchArtist matchArtist = new PerformanceMatchArtist();
+		matchArtist.matchId = matchId;
+		matchArtist.artistId = artistId;
+		matchArtist.occurrenceCount = occurrenceCount;
+		return matchArtist;
+	}
+
 	public Long getMatchId() {
 		return matchId;
 	}

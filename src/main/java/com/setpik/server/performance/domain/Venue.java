@@ -43,6 +43,22 @@ public class Venue extends BaseEntity {
 	protected Venue() {
 	}
 
+	public Venue(String kopisVenueId, String venueName, String city, String district,
+		String address, BigDecimal latitude, BigDecimal longitude) {
+		this.kopisVenueId = kopisVenueId;
+		syncFromKopis(venueName, city, district, address, latitude, longitude);
+	}
+
+	public void syncFromKopis(String venueName, String city, String district,
+		String address, BigDecimal latitude, BigDecimal longitude) {
+		this.venueName = venueName;
+		this.city = city;
+		this.district = district;
+		this.address = address;
+		this.latitude = latitude;
+		this.longitude = longitude;
+	}
+
 	public Long getVenueId() {
 		return venueId;
 	}

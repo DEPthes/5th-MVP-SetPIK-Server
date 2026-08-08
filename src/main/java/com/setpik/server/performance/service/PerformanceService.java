@@ -1,5 +1,6 @@
 package com.setpik.server.performance.service;
 
+import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.common.api.PageResponse;
@@ -31,10 +32,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
 public class PerformanceService {
+	private static final Set<String> RECOMMENDATION_SORT_FIELDS = Set.of(
+		"matchPriority", "matchedArtistCount", "matchRatio", "calculatedAt"
+	);
 
 	private final PerformanceRepository performanceRepository;
 	private final VenueRepository venueRepository;
@@ -43,6 +48,7 @@ public class PerformanceService {
 	private final ArtistRepository artistRepository;
 	private final PerformanceMatchRepository performanceMatchRepository;
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository;
+	private final PlaylistAnalysisRepository playlistAnalysisRepository;
 
 	public PerformanceService(
 		PerformanceRepository performanceRepository,
@@ -51,7 +57,8 @@ public class PerformanceService {
 		PerformanceArtistRepository performanceArtistRepository,
 		ArtistRepository artistRepository,
 		PerformanceMatchRepository performanceMatchRepository,
-		PerformanceMatchArtistRepository performanceMatchArtistRepository
+		PerformanceMatchArtistRepository performanceMatchArtistRepository,
+		PlaylistAnalysisRepository playlistAnalysisRepository
 	) {
 		this.performanceRepository = performanceRepository;
 		this.venueRepository = venueRepository;
@@ -60,6 +67,7 @@ public class PerformanceService {
 		this.artistRepository = artistRepository;
 		this.performanceMatchRepository = performanceMatchRepository;
 		this.performanceMatchArtistRepository = performanceMatchArtistRepository;
+		this.playlistAnalysisRepository = playlistAnalysisRepository;
 	}
 
 	public PerformanceDetailResponse getPerformance(Long performanceId) {
@@ -80,10 +88,13 @@ public class PerformanceService {
 	}
 
 	public PageResponse<PerformanceRecommendationResponse> getRecommendedPerformances(
-		Long analysisId, int page, int size
+		Long userId, Long analysisId, int page, int size, String sort
 	) {
-		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "matchPriority"));
-		Page<PerformanceMatch> matches = performanceMatchRepository.findByAnalysisIdOrderByMatchPriorityAsc(analysisId, pageable);
+		if (!playlistAnalysisRepository.existsByAnalysisIdAndUserId(analysisId, userId)) {
+			throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+		}
+		Pageable pageable = PageRequest.of(page, size, recommendationSort(sort));
+		Page<PerformanceMatch> matches = performanceMatchRepository.findVisibleByAnalysisId(analysisId, pageable);
 
 		Map<Long, Performance> performanceById = performanceRepository
 			.findAllById(matches.getContent().stream().map(PerformanceMatch::getPerformanceId).distinct().toList())
@@ -91,16 +102,41 @@ public class PerformanceService {
 			.collect(Collectors.toMap(Performance::getPerformanceId, Function.identity()));
 
 		List<PerformanceRecommendationResponse> content = matches.getContent().stream()
-			.map(match -> PerformanceRecommendationResponse.of(
-				match,
-				performanceById.get(match.getPerformanceId()).getPerformanceName()
-			))
+			.map(match -> {
+				Performance performance = performanceById.get(match.getPerformanceId());
+				if (performance == null) {
+					throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+				}
+				return PerformanceRecommendationResponse.of(match, performance.getPerformanceName());
+			})
 			.toList();
 
 		return PageResponse.of(content, matches);
 	}
 
-	public List<MatchedArtistResponse> getMatchedArtists(Long analysisId, Long performanceId) {
+	private Sort recommendationSort(String sort) {
+		String[] parts = sort.split(",", -1);
+		if (parts.length != 2 || !RECOMMENDATION_SORT_FIELDS.contains(parts[0])) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
+		Sort.Direction direction;
+		try {
+			direction = Sort.Direction.fromString(parts[1]);
+		} catch (IllegalArgumentException exception) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
+		return Sort.by(direction, parts[0]);
+	}
+
+	public List<MatchedArtistResponse> getMatchedArtists(
+		Long userId,
+		Long analysisId,
+		Long performanceId
+	) {
+		if (!playlistAnalysisRepository.existsByAnalysisIdAndUserId(analysisId, userId)) {
+			throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+		}
+		ensurePerformanceExists(performanceId);
 		PerformanceMatch match = performanceMatchRepository.findByAnalysisIdAndPerformanceId(analysisId, performanceId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 
@@ -116,11 +152,17 @@ public class PerformanceService {
 			.collect(Collectors.toMap(PerformanceArtist::getArtistId, PerformanceArtist::getIsHeadliner));
 
 		return matchArtists.stream()
-			.map(matchArtist -> MatchedArtistResponse.of(
-				matchArtist,
-				artistById.get(matchArtist.getArtistId()),
-				headlinerByArtistId.getOrDefault(matchArtist.getArtistId(), false)
-			))
+			.map(matchArtist -> {
+				Artist artist = artistById.get(matchArtist.getArtistId());
+				if (artist == null) {
+					throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+				}
+				return MatchedArtistResponse.of(
+					matchArtist,
+					artist,
+					headlinerByArtistId.getOrDefault(matchArtist.getArtistId(), false)
+				);
+			})
 			.toList();
 	}
 

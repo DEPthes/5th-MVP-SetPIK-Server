@@ -58,6 +58,14 @@ public class Artist extends BaseEntity {
 		this.spotifyAvailable = true;
 	}
 
+	public static Artist fromKopis(String artistName) {
+		Artist artist = new Artist();
+		artist.artistName = artistName;
+		artist.normalizedName = normalize(artistName);
+		artist.spotifyAvailable = false;
+		return artist;
+	}
+
 	/** 플레이리스트 동기화 응답에 포함된 Spotify 아티스트 정보를 갱신한다. */
 	public void syncFromSpotify(String artistName, String spotifyArtistUrl) {
 		this.artistName = artistName;
@@ -66,7 +74,7 @@ public class Artist extends BaseEntity {
 		this.spotifyAvailable = true;
 	}
 
-	private static String normalize(String artistName) {
+	public static String normalize(String artistName) {
 		return artistName.trim().toLowerCase(Locale.ROOT);
 	}
 

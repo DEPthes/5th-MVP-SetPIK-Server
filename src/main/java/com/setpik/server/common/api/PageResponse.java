@@ -9,9 +9,17 @@ public record PageResponse<T>(
 	int page,
 	int size,
 	long totalElements,
-	int totalPages
+	int totalPages,
+	boolean hasNext
 ) {
 	public static <T> PageResponse<T> of(List<T> content, Page<?> page) {
-		return new PageResponse<>(content, page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
+		return new PageResponse<>(
+			content,
+			page.getNumber(),
+			page.getSize(),
+			page.getTotalElements(),
+			page.getTotalPages(),
+			page.hasNext()
+		);
 	}
 }
