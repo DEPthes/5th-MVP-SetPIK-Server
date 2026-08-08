@@ -48,6 +48,30 @@ public class PerformanceMatch {
 	protected PerformanceMatch() {
 	}
 
+	public static PerformanceMatch create(
+		Byte matchPriority,
+		Integer matchedArtistCount,
+		Integer lineupArtistCount,
+		Byte matchRatio,
+		String recommendationReason,
+		LocalDateTime calculatedAt,
+		Long performanceId,
+		Long analysisId,
+		Long genreId
+	) {
+		PerformanceMatch match = new PerformanceMatch();
+		match.matchPriority = matchPriority;
+		match.matchedArtistCount = matchedArtistCount;
+		match.lineupArtistCount = lineupArtistCount;
+		match.matchRatio = matchRatio;
+		match.recommendationReason = recommendationReason;
+		match.calculatedAt = calculatedAt;
+		match.performanceId = performanceId;
+		match.analysisId = analysisId;
+		match.genreId = genreId;
+		return match;
+	}
+
 	public Long getMatchId() {
 		return matchId;
 	}

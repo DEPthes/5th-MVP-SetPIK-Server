@@ -27,6 +27,11 @@ public class Genre extends CreatedAtEntity {
 	protected Genre() {
 	}
 
+	public Genre(String genreName, String normalizedName) {
+		this.genreName = genreName;
+		this.normalizedName = normalizedName;
+	}
+
 	public Long getGenreId() {
 		return genreId;
 	}

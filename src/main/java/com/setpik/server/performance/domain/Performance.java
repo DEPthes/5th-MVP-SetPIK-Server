@@ -65,6 +65,32 @@ public class Performance extends BaseEntity {
 	protected Performance() {
 	}
 
+	public Performance(String kopisPerformanceId, String performanceName, LocalDate startDate,
+		LocalDate endDate, String posterUrl, String bookingUrl, PerformanceStatus performanceStatus,
+		String priceType, String ticketPriceText, LocalDateTime lastSyncedAt, Long venueId) {
+		this.kopisPerformanceId = kopisPerformanceId;
+		this.favoriteCount = 0;
+		this.isDeleted = false;
+		syncFromKopis(performanceName, startDate, endDate, posterUrl, bookingUrl,
+			performanceStatus, priceType, ticketPriceText, lastSyncedAt, venueId);
+	}
+
+	public void syncFromKopis(String performanceName, LocalDate startDate, LocalDate endDate,
+		String posterUrl, String bookingUrl, PerformanceStatus performanceStatus, String priceType,
+		String ticketPriceText, LocalDateTime lastSyncedAt, Long venueId) {
+		this.performanceName = performanceName;
+		this.startDate = startDate;
+		this.endDate = endDate;
+		this.posterUrl = posterUrl;
+		this.bookingUrl = bookingUrl;
+		this.performanceStatus = performanceStatus;
+		this.priceType = priceType;
+		this.ticketPriceText = ticketPriceText;
+		this.lastSyncedAt = lastSyncedAt;
+		this.venueId = venueId;
+		this.isDeleted = false;
+	}
+
 	public Long getPerformanceId() {
 		return performanceId;
 	}

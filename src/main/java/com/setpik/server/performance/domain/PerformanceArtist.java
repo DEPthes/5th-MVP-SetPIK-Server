@@ -29,6 +29,13 @@ public class PerformanceArtist {
 	protected PerformanceArtist() {
 	}
 
+	public PerformanceArtist(Long artistId, Long performanceId, Long lineupOrder, Boolean isHeadliner) {
+		this.artistId = artistId;
+		this.performanceId = performanceId;
+		this.lineupOrder = lineupOrder;
+		this.isHeadliner = isHeadliner;
+	}
+
 	public Long getArtistId() {
 		return artistId;
 	}

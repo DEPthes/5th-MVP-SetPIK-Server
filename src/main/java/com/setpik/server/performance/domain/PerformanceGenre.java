@@ -26,6 +26,12 @@ public class PerformanceGenre {
 	protected PerformanceGenre() {
 	}
 
+	public PerformanceGenre(Long performanceId, Long genreId, String sourceType) {
+		this.performanceId = performanceId;
+		this.genreId = genreId;
+		this.sourceType = sourceType;
+	}
+
 	public Long getPerformanceId() {
 		return performanceId;
 	}

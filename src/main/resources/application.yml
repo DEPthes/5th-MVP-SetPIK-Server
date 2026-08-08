@@ -70,3 +70,8 @@ setpik:
     secret: ${JWT_SECRET:}
     access-token-expiration: ${ACCESS_TOKEN_EXPIRATION:30m}
     issuer: setpik-server
+
+kopis:
+  api:
+    base-url: ${KOPIS_BASE_URL:http://www.kopis.or.kr/openApi/restful}
+    service-key: ${KOPIS_API_KEY:}
