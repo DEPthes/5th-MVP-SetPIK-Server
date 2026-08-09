@@ -54,6 +54,70 @@ public class SpotifyPlaylistClient {
 		}
 	}
 
+	/** Spotify에 새 플레이리스트를 만들고 플레이리스트 ID를 반환한다. */
+	public String createPlaylist(String accessToken, String spotifyUserId, String title, boolean isPublic) {
+		try {
+			CreatePlaylistRequest request = new CreatePlaylistRequest(title, isPublic);
+			CreatedPlaylist created = restClient.post()
+				.uri(API_BASE_URI + "/users/" + spotifyUserId + "/playlists")
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.body(request)
+				.retrieve()
+				.body(CreatedPlaylist.class);
+			if (created == null || created.id() == null) {
+				throw new SpotifyPlaylistApiException("Spotify 플레이리스트 생성 응답이 비어 있습니다.");
+			}
+			return created.id();
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 생성에 실패했습니다.", exception);
+		} catch (RestClientException exception) {
+			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 생성에 실패했습니다.", exception);
+		}
+	}
+
+	/** 생성된 Spotify 플레이리스트에 트랙을 추가한다. */
+	public void addTracks(String accessToken, String spotifyPlaylistId, List<String> spotifyTrackIds) {
+		if (spotifyTrackIds == null || spotifyTrackIds.isEmpty()) {
+			return;
+		}
+		try {
+			List<String> uris = spotifyTrackIds.stream().map(id -> "spotify:track:" + id).toList();
+			AddTracksRequest request = new AddTracksRequest(uris);
+			restClient.post()
+				.uri(API_BASE_URI + "/playlists/" + spotifyPlaylistId + "/tracks")
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.body(request)
+				.retrieve()
+				.toBodilessEntity();
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			throw new SpotifyPlaylistApiException("Spotify 트랙 추가에 실패했습니다.", exception);
+		} catch (RestClientException exception) {
+			throw new SpotifyPlaylistApiException("Spotify 트랙 추가에 실패했습니다.", exception);
+		}
+	}
+
+	/** 매칭된 아티스트의 Spotify Top Tracks 중 대표곡 1곡을 조회한다. 실패 시 null을 반환한다. */
+	public SpotifyTrackSnapshot fetchTopTrack(String accessToken, String spotifyArtistId) {
+		try {
+			TopTracksResponse response = restClient.get()
+				.uri(API_BASE_URI + "/artists/" + spotifyArtistId + "/top-tracks?market=KR")
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.retrieve()
+				.body(TopTracksResponse.class);
+			if (response == null || response.safeTracks().isEmpty()) {
+				return null;
+			}
+			return toTrackSnapshot(response.safeTracks().get(0));
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			return null;
+		} catch (RestClientException exception) {
+			return null;
+		}
+	}
+
 	private PlaylistPage getPlaylistPage(String accessToken, int offset) {
 		PlaylistPage page = restClient.get()
 			.uri(API_BASE_URI + "/me/playlists?limit=" + PAGE_SIZE + "&offset=" + offset)
@@ -110,12 +174,33 @@ public class SpotifyPlaylistClient {
 		return images == null || images.isEmpty() ? null : images.get(0).url();
 	}
 
+	private SpotifyTrackSnapshot toTrackSnapshot(TrackItem item) {
+		return new SpotifyTrackSnapshot(
+			item.id(),
+			item.name(),
+			item.album() == null ? null : item.album().name(),
+			item.album() == null ? null : firstImageUrl(item.album().images()),
+			item.externalUrls() == null ? null : item.externalUrls().spotify(),
+			item.previewUrl(),
+			item.durationMs(),
+			Boolean.TRUE.equals(item.isPlayable()),
+			null,
+			item.safeArtists().stream()
+				.filter(artist -> artist.id() != null && artist.name() != null)
+				.map(artist -> new SpotifyArtistSnapshot(
+					artist.id(), artist.name(),
+					artist.externalUrls() == null ? null : artist.externalUrls().spotify()
+				))
+				.toList()
+		);
+	}
+
 	private void logSpotifyError(RestClientResponseException exception) {
 		String body = exception.getResponseBodyAsString();
 		if (body.length() > 500) {
 			body = body.substring(0, 500);
 		}
-		log.warn("Spotify 플레이리스트 조회 실패: status={}, response={}",
+		log.warn("Spotify API 호출 실패: status={}, response={}",
 			exception.getStatusCode().value(), body);
 	}
 
@@ -220,5 +305,22 @@ public class SpotifyPlaylistClient {
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	private record ExternalUrls(String spotify) {
+	}
+
+	private record CreatePlaylistRequest(String name, @JsonProperty("public") boolean isPublic) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record CreatedPlaylist(String id) {
+	}
+
+	private record AddTracksRequest(List<String> uris) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record TopTracksResponse(List<TrackItem> tracks) {
+		private List<TrackItem> safeTracks() {
+			return tracks == null ? List.of() : tracks;
+		}
 	}
 }
