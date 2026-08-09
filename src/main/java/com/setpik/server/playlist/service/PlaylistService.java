@@ -24,10 +24,7 @@ import com.setpik.server.playlist.dto.PlaylistSyncResponse;
 import com.setpik.server.playlist.dto.TrackResponse;
 import com.setpik.server.playlist.dto.TrackArtistResponse;
 import com.setpik.server.playlist.dto.TrackPageResponse;
-import com.setpik.server.playlist.repository.PlaylistTrackRepository;
-import com.setpik.server.playlist.repository.SpotifyPlaylistRepository;
-import com.setpik.server.playlist.repository.TrackRepository;
-import com.setpik.server.playlist.repository.TrackArtistRepository;
+import com.setpik.server.playlist.repository.*;
 import com.setpik.server.spotify.domain.ConnectionStatus;
 import com.setpik.server.spotify.domain.SpotifyAccount;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
@@ -41,6 +38,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.Set;
+import com.setpik.server.common.api.PageResponse;
+import com.setpik.server.playlist.domain.PlaylistRecentSelection;
+import com.setpik.server.playlist.domain.PlaylistRecentSelectionId;
+import com.setpik.server.playlist.dto.PlaylistSelectResponse;
+import com.setpik.server.playlist.dto.RecentSelectionResponse;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -64,6 +67,7 @@ public class PlaylistService {
 	private final ArtistRepository artistRepository;
 	private final TrackArtistRepository trackArtistRepository;
 	private final SpotifyAccountRepository spotifyAccountRepository;
+	private final PlaylistRecentSelectionRepository recentSelectionRepository;
 	private final SpotifyPlaylistClient spotifyClient;
 	private final SpotifyOAuthClient spotifyOAuthClient;
 	private final TokenCipher tokenCipher;
@@ -75,6 +79,7 @@ public class PlaylistService {
 						   ArtistRepository artistRepository,
 						   TrackArtistRepository trackArtistRepository,
 						   SpotifyAccountRepository spotifyAccountRepository,
+						   PlaylistRecentSelectionRepository recentSelectionRepository,
 						   SpotifyPlaylistClient spotifyClient,
 						   SpotifyOAuthClient spotifyOAuthClient,
 						   TokenCipher tokenCipher,
@@ -85,6 +90,7 @@ public class PlaylistService {
 		this.artistRepository = artistRepository;
 		this.trackArtistRepository = trackArtistRepository;
 		this.spotifyAccountRepository = spotifyAccountRepository;
+		this.recentSelectionRepository = recentSelectionRepository;
 		this.spotifyClient = spotifyClient;
 		this.spotifyOAuthClient = spotifyOAuthClient;
 		this.tokenCipher = tokenCipher;
@@ -356,5 +362,44 @@ public class PlaylistService {
 		return playlistRepository
 			.findByPlaylistIdAndUserIdAndDeletedAtIsNull(playlistId, userId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+	}
+	@Transactional
+	public PlaylistSelectResponse select(Long userId, Long playlistId) {
+		findOwnedPlaylist(userId, playlistId);
+
+		PlaylistRecentSelection selection = recentSelectionRepository
+			.findById(new PlaylistRecentSelectionId(userId, playlistId))
+			.orElse(null);
+
+		if (selection == null) {
+			selection = recentSelectionRepository.save(
+				new PlaylistRecentSelection(userId, playlistId));
+		} else {
+			selection.reselect();
+		}
+
+		return PlaylistSelectResponse.from(selection);
+	}
+
+	public PageResponse<RecentSelectionResponse> getRecentSelections(Long userId, Pageable pageable) {
+		Page<PlaylistRecentSelection> page = recentSelectionRepository.findByUserId(userId, pageable);
+
+		List<Long> playlistIds = page.getContent().stream()
+			.map(PlaylistRecentSelection::getPlaylistId)
+			.toList();
+
+		Map<Long, String> namesById = playlistRepository.findAllById(playlistIds).stream()
+			.collect(Collectors.toMap(
+				SpotifyPlaylist::getPlaylistId, SpotifyPlaylist::getPlaylistName));
+
+		List<RecentSelectionResponse> content = page.getContent().stream()
+			.map(selection -> new RecentSelectionResponse(
+				selection.getPlaylistId(),
+				namesById.getOrDefault(selection.getPlaylistId(), "Unknown"),
+				selection.getSelectedAt()
+			))
+			.toList();
+
+		return PageResponse.of(content, page);
 	}
 }

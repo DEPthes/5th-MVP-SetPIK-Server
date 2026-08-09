@@ -42,6 +42,22 @@ public class AnalysisArtist extends BaseEntity {
 	protected AnalysisArtist() {
 	}
 
+	public AnalysisArtist(Long analysisId, Long artistId, Integer occurrenceCount,
+						  Short popularitySnapshot, Boolean isMajor, Integer displayRank) {
+		this.analysisId = analysisId;
+		this.artistId = artistId;
+		this.occurrenceCount = occurrenceCount;
+		this.popularitySnapshot = popularitySnapshot;
+		this.isMajor = isMajor;
+		this.isExcluded = false;
+		this.displayRank = displayRank;
+		this.origin = "SPOTIFY";
+	}
+
+	public void changeExcluded(Boolean isExcluded) {
+		this.isExcluded = isExcluded;
+	}
+
 	public Long getArtistId() {
 		return artistId;
 	}

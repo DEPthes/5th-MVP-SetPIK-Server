@@ -57,6 +57,28 @@ public class PlaylistAnalysis {
 	protected PlaylistAnalysis() {
 	}
 
+	public PlaylistAnalysis(Long userId, Long playlistId, String spotifyPlaylistIdSnapshot,
+							String playlistNameSnapshot, String playlistImageSnapshot,
+							Integer totalTrackCount, Integer selectedArtistCount,
+							AnalysisStatus analysisStatus, String warningMessage) {
+		this.userId = userId;
+		this.playlistId = playlistId;
+		this.spotifyPlaylistIdSnapshot = spotifyPlaylistIdSnapshot;
+		this.playlistNameSnapshot = playlistNameSnapshot;
+		this.playlistImageSnapshot = playlistImageSnapshot;
+		this.totalTrackCount = totalTrackCount;
+		this.selectedArtistCount = selectedArtistCount;
+		this.analysisStatus = analysisStatus;
+		this.warningMessage = warningMessage;
+		this.analyzedAt = LocalDateTime.now();
+		this.updatedAt = LocalDateTime.now();
+	}
+
+	public void updateSelectedArtistCount(Integer selectedArtistCount) {
+		this.selectedArtistCount = selectedArtistCount;
+		this.updatedAt = LocalDateTime.now();
+	}
+
 	public Long getAnalysisId() {
 		return analysisId;
 	}

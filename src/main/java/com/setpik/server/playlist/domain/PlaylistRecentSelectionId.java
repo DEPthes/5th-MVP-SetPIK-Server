@@ -11,6 +11,11 @@ public class PlaylistRecentSelectionId implements Serializable {
 	public PlaylistRecentSelectionId() {
 	}
 
+	public PlaylistRecentSelectionId(Long userId, Long playlistId) {
+		this.userId = userId;
+		this.playlistId = playlistId;
+	}
+
 	@Override
 	public boolean equals(Object object) {
 		if (this == object) return true;
