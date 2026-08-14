@@ -1,4 +1,4 @@
-package com.setpik.server.favorite.domain;
+package com.setpik.server.performanceview.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
-/** Flyway의 Performance_Views 테이블을 그대로 매핑한다. */
+/** Flyway의 Performance_Views 테이블과 공연 조회 이력을 매핑한다. */
 @Entity
 @Table(name = "Performance_Views")
 public class PerformanceView {
@@ -33,6 +33,17 @@ public class PerformanceView {
 	protected PerformanceView() {
 	}
 
+	public PerformanceView(Long userId, Long analysisId, Long performanceId, LocalDateTime viewedAt) {
+		this.userId = userId;
+		this.analysisId = analysisId;
+		this.performanceId = performanceId;
+		this.viewedAt = viewedAt;
+	}
+
+	public void updateViewedAt(LocalDateTime viewedAt) {
+		this.viewedAt = viewedAt;
+	}
+
 	public Long getViewId() {
 		return viewId;
 	}
@@ -52,5 +63,4 @@ public class PerformanceView {
 	public Long getPerformanceId() {
 		return performanceId;
 	}
-
 }

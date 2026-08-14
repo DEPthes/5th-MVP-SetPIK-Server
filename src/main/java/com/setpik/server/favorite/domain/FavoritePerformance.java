@@ -33,6 +33,21 @@ public class FavoritePerformance {
 	protected FavoritePerformance() {
 	}
 
+	public FavoritePerformance(Long userId, Long performanceId, LocalDateTime savedAt) {
+		this.userId = userId;
+		this.performanceId = performanceId;
+		this.savedAt = savedAt;
+	}
+
+	public void delete(LocalDateTime deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
+	public void restore(LocalDateTime savedAt) {
+		this.savedAt = savedAt;
+		this.deletedAt = null;
+	}
+
 	public Long getFavoriteId() {
 		return favoriteId;
 	}
