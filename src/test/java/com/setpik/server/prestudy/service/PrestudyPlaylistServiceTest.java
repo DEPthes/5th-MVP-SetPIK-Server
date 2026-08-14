@@ -1,0 +1,193 @@
+package com.setpik.server.prestudy.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.setpik.server.analysis.domain.AnalysisStatus;
+import com.setpik.server.analysis.domain.PlaylistAnalysis;
+import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
+import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.repository.ArtistRepository;
+import com.setpik.server.auth.client.SpotifyOAuthClient;
+import com.setpik.server.auth.security.TokenCipher;
+import com.setpik.server.performance.domain.Performance;
+import com.setpik.server.performance.domain.PerformanceArtist;
+import com.setpik.server.performance.domain.PerformanceMatch;
+import com.setpik.server.performance.repository.PerformanceArtistRepository;
+import com.setpik.server.performance.repository.PerformanceMatchRepository;
+import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.playlist.client.SpotifyPlaylistClient;
+import com.setpik.server.playlist.domain.PlaylistTrack;
+import com.setpik.server.playlist.domain.Track;
+import com.setpik.server.playlist.domain.TrackArtist;
+import com.setpik.server.playlist.repository.PlaylistTrackRepository;
+import com.setpik.server.playlist.repository.TrackArtistRepository;
+import com.setpik.server.playlist.repository.TrackRepository;
+import com.setpik.server.prestudy.domain.PrestudyPlaylist;
+import com.setpik.server.prestudy.domain.PrestudyPlaylistTrack;
+import com.setpik.server.prestudy.domain.SourceType;
+import com.setpik.server.prestudy.dto.CreatePrestudyPlaylistRequest;
+import com.setpik.server.prestudy.repository.PrestudyPlaylistRepository;
+import com.setpik.server.prestudy.repository.PrestudyPlaylistTrackRepository;
+import com.setpik.server.spotify.domain.ConnectionStatus;
+import com.setpik.server.spotify.domain.SpotifyAccount;
+import com.setpik.server.spotify.repository.SpotifyAccountRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class PrestudyPlaylistServiceTest {
+
+	@Mock private PrestudyPlaylistRepository prestudyPlaylistRepository;
+	@Mock private PrestudyPlaylistTrackRepository prestudyPlaylistTrackRepository;
+	@Mock private PerformanceRepository performanceRepository;
+	@Mock private PerformanceArtistRepository performanceArtistRepository;
+	@Mock private PerformanceMatchRepository performanceMatchRepository;
+	@Mock private PlaylistAnalysisRepository playlistAnalysisRepository;
+	@Mock private PlaylistTrackRepository playlistTrackRepository;
+	@Mock private TrackRepository trackRepository;
+	@Mock private ArtistRepository artistRepository;
+	@Mock private TrackArtistRepository trackArtistRepository;
+	@Mock private SpotifyAccountRepository spotifyAccountRepository;
+	@Mock private SpotifyPlaylistClient spotifyPlaylistClient;
+	@Mock private SpotifyOAuthClient spotifyOAuthClient;
+	@Mock private TokenCipher tokenCipher;
+
+	private PrestudyPlaylistService service;
+
+	@BeforeEach
+	void setUp() {
+		Clock clock = Clock.fixed(
+			Instant.parse("2026-08-14T10:00:00Z"), ZoneId.of("Asia/Seoul"));
+		service = new PrestudyPlaylistService(
+			prestudyPlaylistRepository, prestudyPlaylistTrackRepository,
+			performanceRepository, performanceArtistRepository, performanceMatchRepository,
+			playlistAnalysisRepository, playlistTrackRepository, trackRepository,
+			artistRepository, trackArtistRepository, spotifyAccountRepository,
+			spotifyPlaylistClient, spotifyOAuthClient, tokenCipher, clock);
+	}
+
+	@Test
+	void returnsOnlyTracksFromTheAnalyzedOriginalPlaylist() {
+		PlaylistAnalysis analysis = completedAnalysis(1L, 10L);
+		Performance performance = mock(Performance.class);
+		Artist artist = mock(Artist.class);
+		Track originalTrack = mock(Track.class);
+		when(artist.getArtistId()).thenReturn(7L);
+		when(artist.getArtistName()).thenReturn("Artist A");
+		when(originalTrack.getTrackId()).thenReturn(4001L);
+		when(originalTrack.getTrackName()).thenReturn("Song A");
+
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+		when(performanceRepository.findByPerformanceIdAndIsDeletedFalse(1001L))
+			.thenReturn(Optional.of(performance));
+		when(performanceMatchRepository.findByAnalysisIdAndPerformanceId(501L, 1001L))
+			.thenReturn(Optional.of(mock(PerformanceMatch.class)));
+		when(performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(1001L))
+			.thenReturn(List.of(new PerformanceArtist(7L, 1001L, 1L, true)));
+		when(artistRepository.findAllById(List.of(7L))).thenReturn(List.of(artist));
+		when(playlistTrackRepository.findByPlaylistIdOrderByTrackPositionAsc(10L))
+			.thenReturn(List.of(new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now())));
+		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
+			.thenReturn(List.of(new TrackArtist(4001L, 7L, (short) 1)));
+
+		var result = service.getCandidates(1L, 1001L, 501L);
+
+		assertThat(result.artists()).hasSize(1);
+		assertThat(result.artists().get(0).isFromOriginalPlaylist()).isTrue();
+		assertThat(result.artists().get(0).candidateTracks())
+			.extracting(candidate -> candidate.trackId())
+			.containsExactly(4001L);
+		assertThat(result.artists().get(0).candidateTracks().get(0).sourceType())
+			.isEqualTo("ORIGINAL_PLAYLIST");
+	}
+
+	@Test
+	void storesActualSourceTypeAndTrackOrderWhenCreatingPlaylist() {
+		PlaylistAnalysis analysis = completedAnalysis(1L, 10L);
+		Performance performance = mock(Performance.class);
+		Track originalTrack = mock(Track.class);
+		Track matchedTrack = mock(Track.class);
+		when(originalTrack.getTrackId()).thenReturn(4001L);
+		when(originalTrack.getSpotifyTrackId()).thenReturn("spotify-original");
+		when(matchedTrack.getTrackId()).thenReturn(4002L);
+		when(matchedTrack.getSpotifyTrackId()).thenReturn("spotify-matched");
+
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+		when(performanceRepository.findByPerformanceIdAndIsDeletedFalse(1001L))
+			.thenReturn(Optional.of(performance));
+		when(performanceMatchRepository.findByAnalysisIdAndPerformanceId(501L, 1001L))
+			.thenReturn(Optional.of(mock(PerformanceMatch.class)));
+		when(performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(1001L))
+			.thenReturn(List.of(
+				new PerformanceArtist(7L, 1001L, 1L, true),
+				new PerformanceArtist(9L, 1001L, 2L, false)));
+		when(playlistTrackRepository.findByPlaylistIdOrderByTrackPositionAsc(10L))
+			.thenReturn(List.of(new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now())));
+		when(trackRepository.findAllById(List.of(4001L, 4002L)))
+			.thenReturn(List.of(originalTrack, matchedTrack));
+		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
+			.thenReturn(List.of(new TrackArtist(4001L, 7L, (short) 1)));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(
+			List.of(4001L, 4002L)))
+			.thenReturn(List.of(
+				new TrackArtist(4001L, 7L, (short) 1),
+				new TrackArtist(4002L, 9L, (short) 1)));
+
+		SpotifyAccount account = mock(SpotifyAccount.class);
+		when(account.getConnectionStatus()).thenReturn(ConnectionStatus.CONNECTED);
+		when(account.getTokenExpiresAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 20, 0));
+		when(account.getAccessTokenEncrypted()).thenReturn("encrypted-token");
+		when(spotifyAccountRepository.findByUserId(1L)).thenReturn(Optional.of(account));
+		when(tokenCipher.decrypt("encrypted-token")).thenReturn("access-token");
+		when(spotifyPlaylistClient.createPlaylist("access-token", "Prestudy", false))
+			.thenReturn("spotify-playlist");
+
+		PrestudyPlaylist savedPlaylist = mock(PrestudyPlaylist.class);
+		when(savedPlaylist.getPrestudyPlaylistId()).thenReturn(701L);
+		when(prestudyPlaylistRepository.save(org.mockito.ArgumentMatchers.any(PrestudyPlaylist.class)))
+			.thenReturn(savedPlaylist);
+
+		var result = service.createPrestudyPlaylist(
+			1L, 1001L,
+			new CreatePrestudyPlaylistRequest(
+				"Prestudy", false, 501L, List.of(4001L, 4002L)));
+
+		assertThat(result.prestudyPlaylistId()).isEqualTo(701L);
+		assertThat(result.trackCount()).isEqualTo(2);
+		verify(spotifyPlaylistClient).addTracks(
+			"access-token", "spotify-playlist", List.of("spotify-original", "spotify-matched"));
+		ArgumentCaptor<PrestudyPlaylistTrack> trackCaptor =
+			ArgumentCaptor.forClass(PrestudyPlaylistTrack.class);
+		verify(prestudyPlaylistTrackRepository, org.mockito.Mockito.times(2))
+			.save(trackCaptor.capture());
+		assertThat(trackCaptor.getAllValues())
+			.extracting(PrestudyPlaylistTrack::getSourceType)
+			.containsExactly(SourceType.ORIGINAL_PLAYLIST, SourceType.MATCHED_ARTIST);
+		assertThat(trackCaptor.getAllValues())
+			.extracting(PrestudyPlaylistTrack::getIsNewArtistTrack)
+			.containsExactly(false, true);
+	}
+
+	private PlaylistAnalysis completedAnalysis(Long userId, Long playlistId) {
+		return new PlaylistAnalysis(
+			userId, playlistId, "spotify-playlist", "Playlist", null,
+			2, 2, AnalysisStatus.COMPLETED, null);
+	}
+}

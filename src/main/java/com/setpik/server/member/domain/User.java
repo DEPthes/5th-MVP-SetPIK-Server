@@ -44,6 +44,11 @@ public class User extends BaseEntity {
 		this.lastLoginAt = loginAt;
 	}
 
+	/** 회원 계정을 탈퇴 상태로 전환한다. */
+	public void withdraw() {
+		this.status = UserStatus.WITHDRAWN;
+	}
+
 	public Long getUserId() {
 		return userId;
 	}

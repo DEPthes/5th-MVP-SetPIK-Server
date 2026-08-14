@@ -2,6 +2,7 @@ package com.setpik.server.favorite.repository;
 
 import com.setpik.server.favorite.domain.FavoritePerformance;
 import com.setpik.server.favorite.dto.FavoritePerformanceSummary;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +16,8 @@ public interface FavoritePerformanceRepository extends JpaRepository<FavoritePer
 	Optional<FavoritePerformance> findByUserIdAndPerformanceId(Long userId, Long performanceId);
 
 	Optional<FavoritePerformance> findByFavoriteIdAndUserId(Long favoriteId, Long userId);
+
+	List<FavoritePerformance> findAllByUserIdAndDeletedAtIsNull(Long userId);
 
 	@Query(
 		value = """

@@ -1,7 +1,10 @@
 package com.setpik.server.playlist.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -9,11 +12,66 @@ import com.setpik.server.playlist.client.dto.SpotifyPlaylistSnapshot;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 class SpotifyPlaylistClientTest {
+
+	@Test
+	void createsPlaylistAndAddsItemsUsingCurrentSpotifyEndpoints() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
+
+		server.expect(requestTo("https://api.spotify.com/v1/me/playlists"))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+			.andExpect(content().json("{\"name\":\"Prestudy\",\"public\":false}"))
+			.andRespond(withSuccess("{\"id\":\"playlist-created\"}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo("https://api.spotify.com/v1/playlists/playlist-created/items"))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+			.andExpect(content().json("{\"uris\":[\"spotify:track:track-1\"]}"))
+			.andRespond(withSuccess("{\"snapshot_id\":\"snapshot\"}", MediaType.APPLICATION_JSON));
+
+		String playlistId = client.createPlaylist("access-token", "Prestudy", false);
+		client.addTracks("access-token", playlistId, List.of("track-1"));
+
+		assertThat(playlistId).isEqualTo("playlist-created");
+		server.verify();
+	}
+
+	@Test
+	void searchesRepresentativeTrackBecauseArtistTopTracksEndpointWasRemoved() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
+
+		server.expect(requestTo(containsString("https://api.spotify.com/v1/search?")))
+			.andExpect(method(HttpMethod.GET))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+			.andRespond(withSuccess("""
+				{
+				  "tracks": {
+				    "items": [{
+				      "id": "track-1", "name": "Song A", "type": "track",
+				      "artists": [{"id": "artist-1", "name": "Artist A"}],
+				      "album": {"name": "Album", "images": []},
+				      "duration_ms": 180000, "is_playable": true, "is_local": false
+				    }]
+				  }
+				}
+				""", MediaType.APPLICATION_JSON));
+
+		var result = client.fetchRepresentativeTrack(
+			"access-token", "artist-1", "Artist A");
+
+		assertThat(result).isNotNull();
+		assertThat(result.spotifyTrackId()).isEqualTo("track-1");
+		server.verify();
+	}
 
 	@Test
 	void fetchesAndMapsCurrentSpotifyPlaylistItemsResponse() {

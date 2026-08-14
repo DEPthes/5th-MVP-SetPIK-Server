@@ -84,6 +84,11 @@ public class SpotifyPlaylist extends BaseEntity {
 		this.deletedAt = null;
 	}
 
+	/** 회원 탈퇴 후 목록과 분석 대상에서 제외되도록 soft delete한다. */
+	public void delete(LocalDateTime deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
 	public Long getPlaylistId() {
 		return playlistId;
 	}
