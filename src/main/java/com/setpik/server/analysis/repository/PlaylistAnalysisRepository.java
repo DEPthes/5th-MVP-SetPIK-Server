@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PlaylistAnalysisRepository extends JpaRepository<PlaylistAnalysis, Long> {
 
 	Optional<PlaylistAnalysis> findByAnalysisIdAndUserId(Long analysisId, Long userId);
+	Optional<PlaylistAnalysis> findFirstByPlaylistIdAndUserIdOrderByAnalyzedAtDesc(Long playlistId, Long userId);
 
 	boolean existsByAnalysisIdAndUserId(Long analysisId, Long userId);
 }

@@ -27,6 +27,16 @@ public class PlaylistRecentSelection {
 	protected PlaylistRecentSelection() {
 	}
 
+	public PlaylistRecentSelection(Long userId, Long playlistId) {
+		this.userId = userId;
+		this.playlistId = playlistId;
+		this.selectedAt = LocalDateTime.now();
+	}
+
+	public void reselect() {
+		this.selectedAt = LocalDateTime.now();
+	}
+
 	public Long getUserId() {
 		return userId;
 	}
