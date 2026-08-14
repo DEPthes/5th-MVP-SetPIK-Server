@@ -35,6 +35,20 @@ public class PrestudyPlaylistTrack {
 	protected PrestudyPlaylistTrack() {
 	}
 
+	public PrestudyPlaylistTrack(
+		Long prestudyPlaylistId,
+		Long trackId,
+		Integer trackOrder,
+		SourceType sourceType,
+		Boolean isNewArtistTrack
+	) {
+		this.prestudyPlaylistId = prestudyPlaylistId;
+		this.trackId = trackId;
+		this.trackOrder = trackOrder;
+		this.sourceType = sourceType;
+		this.isNewArtistTrack = isNewArtistTrack;
+	}
+
 	public Long getPrestudyPlaylistId() {
 		return prestudyPlaylistId;
 	}

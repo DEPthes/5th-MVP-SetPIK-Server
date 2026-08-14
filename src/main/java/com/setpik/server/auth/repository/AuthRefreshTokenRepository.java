@@ -1,6 +1,7 @@
 package com.setpik.server.auth.repository;
 
 import com.setpik.server.auth.domain.AuthRefreshToken;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -8,4 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface AuthRefreshTokenRepository extends JpaRepository<AuthRefreshToken, Long> {
 
 	Optional<AuthRefreshToken> findByTokenHash(String tokenHash);
+
+	List<AuthRefreshToken> findAllByUserIdAndRevokedAtIsNull(Long userId);
 }

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class SpotifyPlaylistClient {
@@ -51,6 +52,87 @@ public class SpotifyPlaylistClient {
 			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 조회에 실패했습니다.", exception);
 		} catch (RestClientException exception) {
 			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 조회에 실패했습니다.", exception);
+		}
+	}
+
+	/** Spotify에 새 플레이리스트를 만들고 플레이리스트 ID를 반환한다. */
+	public String createPlaylist(String accessToken, String title, boolean isPublic) {
+		try {
+			CreatePlaylistRequest request = new CreatePlaylistRequest(title, isPublic);
+			CreatedPlaylist created = restClient.post()
+				.uri(API_BASE_URI + "/me/playlists")
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.body(request)
+				.retrieve()
+				.body(CreatedPlaylist.class);
+			if (created == null || created.id() == null) {
+				throw new SpotifyPlaylistApiException("Spotify 플레이리스트 생성 응답이 비어 있습니다.");
+			}
+			return created.id();
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 생성에 실패했습니다.", exception);
+		} catch (RestClientException exception) {
+			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 생성에 실패했습니다.", exception);
+		}
+	}
+
+	/** 생성된 Spotify 플레이리스트에 트랙을 추가한다. */
+	public void addTracks(String accessToken, String spotifyPlaylistId, List<String> spotifyTrackIds) {
+		if (spotifyTrackIds == null || spotifyTrackIds.isEmpty()) {
+			return;
+		}
+		try {
+			List<String> uris = spotifyTrackIds.stream().map(id -> "spotify:track:" + id).toList();
+			AddTracksRequest request = new AddTracksRequest(uris);
+			restClient.post()
+				.uri(API_BASE_URI + "/playlists/" + spotifyPlaylistId + "/items")
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.body(request)
+				.retrieve()
+				.toBodilessEntity();
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			throw new SpotifyPlaylistApiException("Spotify 트랙 추가에 실패했습니다.", exception);
+		} catch (RestClientException exception) {
+			throw new SpotifyPlaylistApiException("Spotify 트랙 추가에 실패했습니다.", exception);
+		}
+	}
+
+	/** 매칭된 아티스트의 Spotify Top Tracks 중 대표곡 1곡을 조회한다. 실패 시 null을 반환한다. */
+	public SpotifyTrackSnapshot fetchRepresentativeTrack(
+		String accessToken,
+		String spotifyArtistId,
+		String artistName
+	) {
+		try {
+			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
+				.queryParam("q", "artist:\"" + artistName + "\"")
+				.queryParam("type", "track")
+				.queryParam("market", "KR")
+				.queryParam("limit", 10)
+				.build()
+				.encode()
+				.toUri();
+			TrackSearchResponse response = restClient.get()
+				.uri(uri)
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.retrieve()
+				.body(TrackSearchResponse.class);
+			if (response == null || response.tracks() == null) {
+				return null;
+			}
+			return response.tracks().safeItems().stream()
+				.filter(item -> item.safeArtists().stream()
+					.anyMatch(artist -> spotifyArtistId.equals(artist.id())))
+				.findFirst()
+				.map(this::toTrackSnapshot)
+				.orElse(null);
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			return null;
+		} catch (RestClientException exception) {
+			return null;
 		}
 	}
 
@@ -110,12 +192,33 @@ public class SpotifyPlaylistClient {
 		return images == null || images.isEmpty() ? null : images.get(0).url();
 	}
 
+	private SpotifyTrackSnapshot toTrackSnapshot(TrackItem item) {
+		return new SpotifyTrackSnapshot(
+			item.id(),
+			item.name(),
+			item.album() == null ? null : item.album().name(),
+			item.album() == null ? null : firstImageUrl(item.album().images()),
+			item.externalUrls() == null ? null : item.externalUrls().spotify(),
+			item.previewUrl(),
+			item.durationMs(),
+			Boolean.TRUE.equals(item.isPlayable()),
+			null,
+			item.safeArtists().stream()
+				.filter(artist -> artist.id() != null && artist.name() != null)
+				.map(artist -> new SpotifyArtistSnapshot(
+					artist.id(), artist.name(),
+					artist.externalUrls() == null ? null : artist.externalUrls().spotify()
+				))
+				.toList()
+		);
+	}
+
 	private void logSpotifyError(RestClientResponseException exception) {
 		String body = exception.getResponseBodyAsString();
 		if (body.length() > 500) {
 			body = body.substring(0, 500);
 		}
-		log.warn("Spotify 플레이리스트 조회 실패: status={}, response={}",
+		log.warn("Spotify API 호출 실패: status={}, response={}",
 			exception.getStatusCode().value(), body);
 	}
 
@@ -220,5 +323,26 @@ public class SpotifyPlaylistClient {
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	private record ExternalUrls(String spotify) {
+	}
+
+	private record CreatePlaylistRequest(String name, @JsonProperty("public") boolean isPublic) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record CreatedPlaylist(String id) {
+	}
+
+	private record AddTracksRequest(List<String> uris) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record TrackSearchResponse(TrackSearchPage tracks) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record TrackSearchPage(List<TrackItem> items) {
+		private List<TrackItem> safeItems() {
+			return items == null ? List.of() : items;
+		}
 	}
 }

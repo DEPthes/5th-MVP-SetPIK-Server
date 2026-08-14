@@ -47,6 +47,12 @@ public class SpotifyAccountScope {
 		return scope;
 	}
 
+	/** Spotify 연결 해제 시 더 이상 사용할 수 없는 권한으로 표시한다. */
+	public void revoke(LocalDateTime revokedAt) {
+		this.isGranted = false;
+		this.revokedAt = revokedAt;
+	}
+
 	public String getScopeName() {
 		return scopeName;
 	}
