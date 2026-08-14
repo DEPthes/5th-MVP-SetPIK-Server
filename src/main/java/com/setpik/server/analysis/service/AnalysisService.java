@@ -8,6 +8,7 @@ import com.setpik.server.analysis.dto.AnalysisArtistUpdateRequest;
 import com.setpik.server.analysis.dto.AnalysisArtistUpdateResponse;
 import com.setpik.server.analysis.dto.AnalysisDetailResponse;
 import com.setpik.server.analysis.dto.AnalysisResponse;
+import com.setpik.server.analysis.dto.TopArtistResponse;
 import com.setpik.server.analysis.repository.AnalysisArtistRepository;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
@@ -26,6 +27,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
@@ -66,8 +69,21 @@ public class AnalysisService {
 
 	@Transactional
 	public AnalysisResponse analyze(Long userId, Long playlistId) {
+		if (playlistId == null || playlistId <= 0) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
 		SpotifyPlaylist playlist = findOwnedPlaylist(userId, playlistId);
 
+		try {
+			return executeAnalysis(userId, playlistId, playlist);
+		} catch (BusinessException exception) {
+			throw exception;
+		} catch (RuntimeException exception) {
+			throw new BusinessException(ErrorCode.ANALYSIS_FAILED);
+		}
+	}
+
+	private AnalysisResponse executeAnalysis(Long userId, Long playlistId, SpotifyPlaylist playlist) {
 		List<Long> trackIds = playlistTrackRepository
 			.findByPlaylistIdOrderByTrackPositionAsc(playlistId).stream()
 			.map(PlaylistTrack::getTrackId)
@@ -82,7 +98,7 @@ public class AnalysisService {
 			warningMessage = "트랙에 연결된 아티스트 정보가 없습니다.";
 		}
 
-		PlaylistAnalysis analysis = analysisRepository.save(new PlaylistAnalysis(
+		PlaylistAnalysis analysis = analysisRepository.saveAndFlush(new PlaylistAnalysis(
 			userId,
 			playlistId,
 			playlist.getSpotifyPlaylistId(),
@@ -100,10 +116,13 @@ public class AnalysisService {
 	}
 
 	public AnalysisDetailResponse getLatestAnalysis(Long userId, Long playlistId) {
+		if (playlistId == null || playlistId <= 0) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
 		findOwnedPlaylist(userId, playlistId);
 
 		PlaylistAnalysis analysis = analysisRepository
-			.findFirstByPlaylistIdAndUserIdOrderByAnalyzedAtDesc(playlistId, userId)
+			.findFirstByPlaylistIdAndUserIdOrderByAnalyzedAtDescAnalysisIdDesc(playlistId, userId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 
 		List<AnalysisArtist> topArtists = analysisArtistRepository
@@ -117,8 +136,23 @@ public class AnalysisService {
 			analysis.getAnalysisStatus(),
 			analysis.getWarningMessage(),
 			analysis.getSelectedArtistCount(),
-			toArtistResponses(topArtists)
+			toTopArtistResponses(topArtists)
 		);
+	}
+
+	private List<TopArtistResponse> toTopArtistResponses(List<AnalysisArtist> analysisArtists) {
+		if (analysisArtists.isEmpty()) {
+			return List.of();
+		}
+
+		Map<Long, String> namesById = artistRepository
+			.findAllById(analysisArtists.stream().map(AnalysisArtist::getArtistId).toList()).stream()
+			.collect(Collectors.toMap(Artist::getArtistId, Artist::getArtistName));
+
+		return analysisArtists.stream()
+			.map(artist -> TopArtistResponse.of(
+				artist, namesById.getOrDefault(artist.getArtistId(), "Unknown")))
+			.toList();
 	}
 
 	public PageResponse<AnalysisArtistResponse> getAnalysisArtists(
@@ -135,13 +169,22 @@ public class AnalysisService {
 	@Transactional
 	public AnalysisArtistUpdateResponse updateArtistExclusion(
 		Long userId, Long analysisId, AnalysisArtistUpdateRequest request) {
+		if (analysisId == null || analysisId <= 0) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
+		Set<Long> requestedArtistIds = new HashSet<>();
+		for (AnalysisArtistUpdateRequest.ArtistExclusion exclusion : request.artists()) {
+			if (!requestedArtistIds.add(exclusion.artistId())) {
+				throw new BusinessException(ErrorCode.DUPLICATE_REQUEST);
+			}
+		}
+
 		PlaylistAnalysis analysis = findOwnedAnalysis(userId, analysisId);
 
 		Map<Long, AnalysisArtist> artistsById = analysisArtistRepository
 			.findByAnalysisIdOrderByDisplayRankAsc(analysisId).stream()
 			.collect(Collectors.toMap(AnalysisArtist::getArtistId, Function.identity()));
 
-		int updatedCount = 0;
 		for (AnalysisArtistUpdateRequest.ArtistExclusion exclusion : request.artists()) {
 			AnalysisArtist target = artistsById.get(exclusion.artistId());
 			if (target == null) {
@@ -149,7 +192,6 @@ public class AnalysisService {
 			}
 			if (!target.getIsExcluded().equals(exclusion.isExcluded())) {
 				target.changeExcluded(exclusion.isExcluded());
-				updatedCount++;
 			}
 		}
 
@@ -158,7 +200,7 @@ public class AnalysisService {
 			.count();
 		analysis.updateSelectedArtistCount((int) remainingCount);
 
-		return new AnalysisArtistUpdateResponse(analysisId, updatedCount);
+		return new AnalysisArtistUpdateResponse(analysisId, request.artists().size());
 	}
 
 	/** 트랙 목록을 순회하며 아티스트별 출현 횟수를 집계한다. */
@@ -167,10 +209,13 @@ public class AnalysisService {
 			return Map.of();
 		}
 
+		Map<Long, Integer> occurrenceByTrackId = trackIds.stream()
+			.collect(Collectors.toMap(Function.identity(), ignored -> 1, Integer::sum));
 		Map<Long, Integer> occurrenceByArtistId = new LinkedHashMap<>();
 		for (TrackArtist trackArtist : trackArtistRepository
 			.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(trackIds)) {
-			occurrenceByArtistId.merge(trackArtist.getArtistId(), 1, Integer::sum);
+			int trackOccurrence = occurrenceByTrackId.getOrDefault(trackArtist.getTrackId(), 0);
+			occurrenceByArtistId.merge(trackArtist.getArtistId(), trackOccurrence, Integer::sum);
 		}
 		return occurrenceByArtistId;
 	}
@@ -202,7 +247,7 @@ public class AnalysisService {
 				rank++
 			));
 		}
-		analysisArtistRepository.saveAll(analysisArtists);
+		analysisArtistRepository.saveAllAndFlush(analysisArtists);
 	}
 
 	/** 분석 아티스트에 아티스트명을 채워 응답 DTO로 변환한다. */
@@ -231,6 +276,9 @@ public class AnalysisService {
 	}
 
 	private PlaylistAnalysis findOwnedAnalysis(Long userId, Long analysisId) {
+		if (analysisId == null || analysisId <= 0) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
 		return analysisRepository.findByAnalysisIdAndUserId(analysisId, userId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 	}

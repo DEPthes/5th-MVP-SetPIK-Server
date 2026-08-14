@@ -24,6 +24,8 @@ import com.setpik.server.playlist.dto.RecentSelectionResponse;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 @RestController
 @RequestMapping("/api/v1/playlists")
@@ -41,6 +43,7 @@ public class PlaylistController {
 			playlistService.sync(userId(jwt)));
 	}
 	@PostMapping("/{playlistId}/select")
+	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<PlaylistSelectResponse> select(
 		@PathVariable Long playlistId,
 		@AuthenticationPrincipal Jwt jwt
@@ -66,7 +69,7 @@ public class PlaylistController {
 		}
 
 		String[] parts = sort == null ? new String[0] : sort.trim().split(",");
-		if (parts.length != 2) {
+		if (parts.length != 2 || !"selectedAt".equals(parts[0])) {
 			throw new BusinessException(ErrorCode.INVALID_REQUEST);
 		}
 
