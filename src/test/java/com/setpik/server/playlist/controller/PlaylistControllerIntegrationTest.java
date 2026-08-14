@@ -23,8 +23,10 @@ import com.setpik.server.playlist.client.SpotifyPlaylistApiException;
 import com.setpik.server.playlist.client.dto.SpotifyPlaylistSnapshot;
 import com.setpik.server.playlist.client.dto.SpotifyArtistSnapshot;
 import com.setpik.server.playlist.client.dto.SpotifyTrackSnapshot;
+import com.setpik.server.playlist.domain.PlaylistRecentSelection;
 import com.setpik.server.playlist.domain.SpotifyPlaylist;
 import com.setpik.server.playlist.repository.SpotifyPlaylistRepository;
+import com.setpik.server.playlist.repository.PlaylistRecentSelectionRepository;
 import com.setpik.server.spotify.domain.SpotifyAccount;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
 import java.time.LocalDateTime;
@@ -56,6 +58,9 @@ class PlaylistControllerIntegrationTest {
 
 	@Autowired
 	private SpotifyPlaylistRepository playlistRepository;
+
+	@Autowired
+	private PlaylistRecentSelectionRepository recentSelectionRepository;
 
 	@Autowired
 	private JwtAccessTokenProvider accessTokenProvider;
@@ -358,6 +363,117 @@ class PlaylistControllerIntegrationTest {
 		assertThat(tokenCipher.decrypt(refreshed.getAccessTokenEncrypted()))
 			.isEqualTo("renewed-access-token");
 		assertThat(refreshed.getTokenExpiresAt()).isAfter(now.plusMinutes(59));
+	}
+
+	@Test
+	void selectsOwnedPlaylistAndReselectsWithoutDuplicateHistory() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User user = userRepository.saveAndFlush(User.createActive(now));
+		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-playlist-select", "Analysis Playlist", null, null, false,
+			"spotify-owner", "snapshot-select", 10, user.getUserId()
+		));
+		String authorization = bearerToken(user.getUserId());
+
+		mockMvc.perform(post("/api/v1/playlists/{playlistId}/select", playlist.getPlaylistId())
+				.header(HttpHeaders.AUTHORIZATION, authorization))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.isSuccess").value(true))
+			.andExpect(jsonPath("$.code").value(1100))
+			.andExpect(jsonPath("$.message").value("플레이리스트가 선택되었습니다."))
+			.andExpect(jsonPath("$.result.playlistId").value(playlist.getPlaylistId()))
+			.andExpect(jsonPath("$.result.selectedAt", endsWith("+09:00")));
+
+		mockMvc.perform(post("/api/v1/playlists/{playlistId}/select", playlist.getPlaylistId())
+				.header(HttpHeaders.AUTHORIZATION, authorization))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.code").value(1100));
+
+		assertThat(recentSelectionRepository.count()).isEqualTo(1);
+	}
+
+	@Test
+	void validatesAuthenticationPlaylistIdAndOwnershipWhenSelecting() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User owner = userRepository.saveAndFlush(User.createActive(now));
+		User requester = userRepository.saveAndFlush(User.createActive(now));
+		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-playlist-other", "Other Playlist", null, null, false,
+			"spotify-owner", "snapshot-other", 1, owner.getUserId()
+		));
+
+		mockMvc.perform(post("/api/v1/playlists/{playlistId}/select", playlist.getPlaylistId()))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value(2001));
+
+		String authorization = bearerToken(requester.getUserId());
+		mockMvc.perform(post("/api/v1/playlists/0/select")
+				.header(HttpHeaders.AUTHORIZATION, authorization))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value(2000));
+
+		mockMvc.perform(post("/api/v1/playlists/{playlistId}/select", playlist.getPlaylistId())
+				.header(HttpHeaders.AUTHORIZATION, authorization))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value(2003));
+	}
+
+	@Test
+	void returnsRecentSelectionsInLatestOrderWithPagingMetadata() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User user = userRepository.saveAndFlush(User.createActive(now));
+		SpotifyPlaylist olderPlaylist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-recent-older", "Older Playlist", null, null, false,
+			"spotify-owner", "snapshot-older", 3, user.getUserId()
+		));
+		SpotifyPlaylist latestPlaylist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-recent-latest", "Latest Playlist", null, null, false,
+			"spotify-owner", "snapshot-latest", 5, user.getUserId()
+		));
+		recentSelectionRepository.saveAllAndFlush(List.of(
+			new PlaylistRecentSelection(user.getUserId(), olderPlaylist.getPlaylistId(), now.minusMinutes(10)),
+			new PlaylistRecentSelection(user.getUserId(), latestPlaylist.getPlaylistId(), now)
+		));
+
+		mockMvc.perform(get("/api/v1/playlists/recent-selections")
+				.param("page", "0")
+				.param("size", "1")
+				.param("sort", "selectedAt,desc")
+				.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId())))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.isSuccess").value(true))
+			.andExpect(jsonPath("$.code").value(1000))
+			.andExpect(jsonPath("$.message").value("요청에 성공했습니다."))
+			.andExpect(jsonPath("$.result.content[0].playlistId").value(latestPlaylist.getPlaylistId()))
+			.andExpect(jsonPath("$.result.content[0].playlistName").value("Latest Playlist"))
+			.andExpect(jsonPath("$.result.content[0].selectedAt", endsWith("+09:00")))
+			.andExpect(jsonPath("$.result.page").value(0))
+			.andExpect(jsonPath("$.result.size").value(1))
+			.andExpect(jsonPath("$.result.totalElements").value(2))
+			.andExpect(jsonPath("$.result.totalPages").value(2))
+			.andExpect(jsonPath("$.result.hasNext").value(true));
+	}
+
+	@Test
+	void validatesAuthenticationAndPagingWhenGettingRecentSelections() throws Exception {
+		mockMvc.perform(get("/api/v1/playlists/recent-selections"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value(2001));
+
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		String authorization = bearerToken(user.getUserId());
+
+		mockMvc.perform(get("/api/v1/playlists/recent-selections")
+				.param("size", "101")
+				.header(HttpHeaders.AUTHORIZATION, authorization))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value(2000));
+
+		mockMvc.perform(get("/api/v1/playlists/recent-selections")
+				.param("sort", "unknown,asc")
+				.header(HttpHeaders.AUTHORIZATION, authorization))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value(2000));
 	}
 
 	private String bearerToken(Long userId) {

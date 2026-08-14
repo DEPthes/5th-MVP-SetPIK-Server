@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -33,6 +36,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalysisController {
 
 	private static final int MAX_PAGE_SIZE = 100;
+	private static final Set<String> ANALYSIS_ARTIST_SORT_FIELDS = Set.of(
+		"displayRank", "occurrenceCount", "popularitySnapshot", "artistId");
 
 	private final AnalysisService analysisService;
 
@@ -41,6 +46,7 @@ public class AnalysisController {
 	}
 
 	@PostMapping("/playlists/{playlistId}/analysis")
+	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<AnalysisResponse> analyze(
 		@PathVariable Long playlistId,
 		@AuthenticationPrincipal Jwt jwt
@@ -86,7 +92,7 @@ public class AnalysisController {
 		}
 
 		String[] parts = sort == null ? new String[0] : sort.trim().split(",");
-		if (parts.length != 2) {
+		if (parts.length != 2 || !ANALYSIS_ARTIST_SORT_FIELDS.contains(parts[0])) {
 			throw new BusinessException(ErrorCode.INVALID_REQUEST);
 		}
 

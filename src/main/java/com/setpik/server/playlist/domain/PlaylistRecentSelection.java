@@ -27,14 +27,14 @@ public class PlaylistRecentSelection {
 	protected PlaylistRecentSelection() {
 	}
 
-	public PlaylistRecentSelection(Long userId, Long playlistId) {
+	public PlaylistRecentSelection(Long userId, Long playlistId, LocalDateTime selectedAt) {
 		this.userId = userId;
 		this.playlistId = playlistId;
-		this.selectedAt = LocalDateTime.now();
+		this.selectedAt = selectedAt;
 	}
 
-	public void reselect() {
-		this.selectedAt = LocalDateTime.now();
+	public void reselect(LocalDateTime selectedAt) {
+		this.selectedAt = selectedAt;
 	}
 
 	public Long getUserId() {

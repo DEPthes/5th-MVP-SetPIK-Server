@@ -8,6 +8,6 @@ public record AnalysisDetailResponse(
 	AnalysisStatus analysisStatus,
 	String warningMessage,
 	Integer selectedArtistCount,
-	List<AnalysisArtistResponse> topArtists
+	List<TopArtistResponse> topArtists
 ) {
 }

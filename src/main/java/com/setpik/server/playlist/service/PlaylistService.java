@@ -366,6 +366,7 @@ public class PlaylistService {
 	@Transactional
 	public PlaylistSelectResponse select(Long userId, Long playlistId) {
 		findOwnedPlaylist(userId, playlistId);
+		LocalDateTime selectedAt = LocalDateTime.now(clock);
 
 		PlaylistRecentSelection selection = recentSelectionRepository
 			.findById(new PlaylistRecentSelectionId(userId, playlistId))
@@ -373,9 +374,9 @@ public class PlaylistService {
 
 		if (selection == null) {
 			selection = recentSelectionRepository.save(
-				new PlaylistRecentSelection(userId, playlistId));
+				new PlaylistRecentSelection(userId, playlistId, selectedAt));
 		} else {
-			selection.reselect();
+			selection.reselect(selectedAt);
 		}
 
 		return PlaylistSelectResponse.from(selection);
@@ -393,10 +394,9 @@ public class PlaylistService {
 				SpotifyPlaylist::getPlaylistId, SpotifyPlaylist::getPlaylistName));
 
 		List<RecentSelectionResponse> content = page.getContent().stream()
-			.map(selection -> new RecentSelectionResponse(
-				selection.getPlaylistId(),
-				namesById.getOrDefault(selection.getPlaylistId(), "Unknown"),
-				selection.getSelectedAt()
+			.map(selection -> RecentSelectionResponse.from(
+				selection,
+				namesById.getOrDefault(selection.getPlaylistId(), "Unknown")
 			))
 			.toList();
 

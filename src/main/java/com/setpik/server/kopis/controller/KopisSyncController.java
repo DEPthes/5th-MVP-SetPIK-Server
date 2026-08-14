@@ -1,8 +1,10 @@
 package com.setpik.server.kopis.controller;
 
 import com.setpik.server.common.api.ApiResponse;
+import com.setpik.server.common.config.SwaggerConfig;
 import com.setpik.server.kopis.dto.KopisSyncResponse;
 import com.setpik.server.kopis.service.KopisPerformanceSyncService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/internal/kopis")
 @Tag(name = "KOPIS 내부 연동", description = "운영자가 KOPIS 공연 데이터를 내부 DB로 동기화하는 API")
+@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
 public class KopisSyncController {
 
 	private final KopisPerformanceSyncService syncService;
