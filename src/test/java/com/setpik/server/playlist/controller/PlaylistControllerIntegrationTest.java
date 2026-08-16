@@ -30,6 +30,7 @@ import com.setpik.server.playlist.repository.SpotifyPlaylistRepository;
 import com.setpik.server.playlist.repository.PlaylistRecentSelectionRepository;
 import com.setpik.server.spotify.domain.SpotifyAccount;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,9 @@ class PlaylistControllerIntegrationTest {
 	@Autowired
 	private TokenCipher tokenCipher;
 
+	@Autowired
+	private Clock clock;
+
 	@MockitoBean
 	private SpotifyPlaylistClient spotifyPlaylistClient;
 
@@ -80,7 +84,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void syncsSpotifyDataForAuthenticatedUser() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		spotifyAccountRepository.saveAndFlush(SpotifyAccount.connect(
 			"spotify-user", "user@example.com", "setpik-user", null,
@@ -164,7 +168,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsFilteredAndPagedPlaylistsUsingRequestedSort() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		playlistRepository.saveAllAndFlush(List.of(
 			new SpotifyPlaylist(
@@ -204,7 +208,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsInvalidRequestForInvalidPlaylistPagingOrSort() throws Exception {
-		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now(clock)));
 
 		mockMvc.perform(get("/api/v1/playlists")
 				.param("size", "101")
@@ -221,7 +225,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsOwnedPlaylistDetailUsingSpecifiedResponseFields() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
 			"spotify-playlist-detail", "Festival Playlist", "SetPIK analysis playlist",
@@ -248,7 +252,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void validatesPlaylistIdAndHidesAnotherUsersPlaylist() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User owner = userRepository.saveAndFlush(User.createActive(now));
 		User requester = userRepository.saveAndFlush(User.createActive(now));
 		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
@@ -298,7 +302,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsSpotifyConnectionRequiredWhenAccountDoesNotExist() throws Exception {
-		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now(clock)));
 
 		mockMvc.perform(post("/api/v1/playlists/sync")
 				.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId())))
@@ -308,7 +312,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsReauthenticationRequiredWhenSpotifyRefreshFails() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		spotifyAccountRepository.saveAndFlush(SpotifyAccount.connect(
 			"spotify-user-reauth", "reauth@example.com", "reauth-user", null,
@@ -327,7 +331,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsSpotifyApiErrorWhenPlaylistRequestFails() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		spotifyAccountRepository.saveAndFlush(SpotifyAccount.connect(
 			"spotify-user-api-error", "api-error@example.com", "api-error-user", null,
@@ -346,7 +350,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void refreshesExpiredSpotifyTokenBeforeSync() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		SpotifyAccount account = spotifyAccountRepository.saveAndFlush(SpotifyAccount.connect(
 			"spotify-user-expired", "expired@example.com", "expired-user", null,
@@ -377,7 +381,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void selectsOwnedPlaylistAndReselectsWithoutDuplicateHistory() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
 			"spotify-playlist-select", "Analysis Playlist", null, null, false,
@@ -404,7 +408,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void keepsOnlyFiveMostRecentPlaylistSelectionsPerUser() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		List<SpotifyPlaylist> playlists = new java.util.ArrayList<>();
 		for (int index = 1; index <= 6; index++) {
@@ -436,7 +440,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void validatesAuthenticationPlaylistIdAndOwnershipWhenSelecting() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User owner = userRepository.saveAndFlush(User.createActive(now));
 		User requester = userRepository.saveAndFlush(User.createActive(now));
 		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
@@ -462,7 +466,7 @@ class PlaylistControllerIntegrationTest {
 
 	@Test
 	void returnsRecentSelectionsInLatestOrderWithPagingMetadata() throws Exception {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(clock);
 		User user = userRepository.saveAndFlush(User.createActive(now));
 		SpotifyPlaylist olderPlaylist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
 			"spotify-recent-older", "Older Playlist", null, null, false,
@@ -502,7 +506,7 @@ class PlaylistControllerIntegrationTest {
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value(2001));
 
-		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now(clock)));
 		String authorization = bearerToken(user.getUserId());
 
 		mockMvc.perform(get("/api/v1/playlists/recent-selections")
