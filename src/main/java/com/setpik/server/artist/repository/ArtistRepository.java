@@ -1,6 +1,7 @@
 package com.setpik.server.artist.repository;
 
 import com.setpik.server.artist.domain.Artist;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -8,4 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
 	Optional<Artist> findBySpotifyArtistId(String spotifyArtistId);
 	Optional<Artist> findByNormalizedName(String normalizedName);
+	List<Artist> findByNormalizedNameIn(List<String> normalizedNames);
 }

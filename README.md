@@ -165,6 +165,17 @@ phpMyAdmin 접속 정보:
 - `AUTH_COOKIE_SECURE`: HTTPS 환경에서는 `true`, 로컬 HTTP 환경에서는 `false`
 - `JWT_SECRET`: Access Token 서명에 사용하는 Base64 32바이트 이상 비밀키
 - `ACCESS_TOKEN_EXPIRATION`: Access Token 유효기간(기본값 `30m`)
+- `KOPIS_API_KEY`: KOPIS Open API 인증키
+- `KOPIS_DETAIL_CONCURRENCY`: 공연·공연장 상세 조회 최대 동시 요청 수(기본값 `5`)
+- `KOPIS_BATCH_SIZE`: 한 트랜잭션에서 저장할 공연 수(기본값 `50`)
+- `KOPIS_RETRY_MAX_ATTEMPTS`: 일시적인 KOPIS 오류의 최대 시도 횟수(기본값 `3`)
+- `KOPIS_RETRY_DELAY`: KOPIS 재시도 기본 대기시간(기본값 `500ms`)
+- `KOPIS_CONNECT_TIMEOUT`: KOPIS 연결 제한시간(기본값 `3s`)
+- `KOPIS_READ_TIMEOUT`: KOPIS 응답 제한시간(기본값 `10s`)
+- `KOPIS_SYNC_ENABLED`: 운영 자동 동기화 활성화 여부(기본값 `false`)
+- `KOPIS_SYNC_CRON`: 자동 동기화 cron. 기본값은 매일 오전 3시
+- `KOPIS_SYNC_FUTURE_DAYS`: 자동 동기화 시 오늘부터 조회할 기간(기본값 `1일`)
+- `JPA_BATCH_SIZE`: JPA가 INSERT·UPDATE를 묶어 전송할 크기(기본값 `50`)
 
 ## Flyway
 

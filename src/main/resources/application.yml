@@ -7,7 +7,7 @@ spring:
   profiles:
     default: local
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:setpik}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:setpik}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
     username: ${DB_USERNAME:setpik}
     password: ${DB_PASSWORD:setpik}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -23,6 +23,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          batch_size: ${JPA_BATCH_SIZE:50}
+        order_inserts: true
+        order_updates: true
   docker:
     compose:
       enabled: false
@@ -75,3 +79,13 @@ kopis:
   api:
     base-url: ${KOPIS_BASE_URL:http://www.kopis.or.kr/openApi/restful}
     service-key: ${KOPIS_API_KEY:}
+    detail-concurrency: ${KOPIS_DETAIL_CONCURRENCY:5}
+    batch-size: ${KOPIS_BATCH_SIZE:50}
+    retry-max-attempts: ${KOPIS_RETRY_MAX_ATTEMPTS:3}
+    retry-delay: ${KOPIS_RETRY_DELAY:500ms}
+    connect-timeout: ${KOPIS_CONNECT_TIMEOUT:3s}
+    read-timeout: ${KOPIS_READ_TIMEOUT:10s}
+  sync:
+    enabled: ${KOPIS_SYNC_ENABLED:false}
+    cron: ${KOPIS_SYNC_CRON:0 0 3 * * *}
+    future-days: ${KOPIS_SYNC_FUTURE_DAYS:1}
