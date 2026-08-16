@@ -116,7 +116,8 @@ class AnalysisControllerIntegrationTest {
 			.andExpect(jsonPath("$.message").value("요청에 성공했습니다."))
 			.andExpect(jsonPath("$.result.analysisId").value(analysis.getAnalysisId()))
 			.andExpect(jsonPath("$.result.analysisStatus").value("COMPLETED"))
-			.andExpect(jsonPath("$.result.warningMessage").isEmpty())
+			.andExpect(jsonPath("$.result.warningMessage")
+				.value("곡 수가 적어 분석 정확도가 낮을 수 있습니다."))
 			.andExpect(jsonPath("$.result.selectedArtistCount").value(2))
 			.andExpect(jsonPath("$.result.topArtists[0].artistId").value(repeatedArtist.getArtistId()))
 			.andExpect(jsonPath("$.result.topArtists[0].artistName").value("Repeated Artist"))
@@ -211,6 +212,48 @@ class AnalysisControllerIntegrationTest {
 				.content("{\"artists\":[{\"artistId\":999999,\"isExcluded\":true}]}"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value(2003));
+	}
+
+	@Test
+	void ranksArtistsWithSameOccurrenceBySpotifyPopularity() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User user = userRepository.saveAndFlush(User.createActive(now));
+		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-popularity-ranking", "Popularity Ranking Playlist", null, null, false,
+			"spotify-owner", "snapshot-popularity-ranking", 2, user.getUserId()));
+		Track firstTrack = trackRepository.saveAndFlush(new Track(
+			"spotify-popularity-track-1", "Track 1", null, null, null, null, 180000, true));
+		Track secondTrack = trackRepository.saveAndFlush(new Track(
+			"spotify-popularity-track-2", "Track 2", null, null, null, null, 180000, true));
+		Artist lessPopular = artistRepository.saveAndFlush(new Artist(
+			"spotify-less-popular", "Less Popular", null, null, (short) 20));
+		Artist morePopular = artistRepository.saveAndFlush(new Artist(
+			"spotify-more-popular", "More Popular", null, null, (short) 90));
+
+		playlistTrackRepository.saveAllAndFlush(List.of(
+			new PlaylistTrack(playlist.getPlaylistId(), firstTrack.getTrackId(), 1, now),
+			new PlaylistTrack(playlist.getPlaylistId(), secondTrack.getTrackId(), 2, now)
+		));
+		trackArtistRepository.saveAllAndFlush(List.of(
+			new TrackArtist(firstTrack.getTrackId(), lessPopular.getArtistId(), (short) 1),
+			new TrackArtist(secondTrack.getTrackId(), morePopular.getArtistId(), (short) 1)
+		));
+
+		mockMvc.perform(post("/api/v1/playlists/{playlistId}/analysis", playlist.getPlaylistId())
+				.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId())))
+			.andExpect(status().isCreated());
+
+		PlaylistAnalysis analysis = analysisRepository
+			.findFirstByPlaylistIdAndUserIdOrderByAnalyzedAtDescAnalysisIdDesc(
+				playlist.getPlaylistId(), user.getUserId())
+			.orElseThrow();
+		List<AnalysisArtist> ranked = analysisArtistRepository
+			.findByAnalysisIdOrderByDisplayRankAsc(analysis.getAnalysisId());
+
+		assertThat(ranked).extracting(AnalysisArtist::getArtistId)
+			.containsExactly(morePopular.getArtistId(), lessPopular.getArtistId());
+		assertThat(ranked).extracting(AnalysisArtist::getPopularitySnapshot)
+			.containsExactly((short) 90, (short) 20);
 	}
 
 	@Test

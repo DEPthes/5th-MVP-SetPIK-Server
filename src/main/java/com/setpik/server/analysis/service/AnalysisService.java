@@ -96,6 +96,8 @@ public class AnalysisService {
 			warningMessage = "플레이리스트에 트랙이 없어 분석할 아티스트를 찾지 못했습니다.";
 		} else if (occurrenceByArtistId.isEmpty()) {
 			warningMessage = "트랙에 연결된 아티스트 정보가 없습니다.";
+		} else if (trackIds.size() < 5) {
+			warningMessage = "곡 수가 적어 분석 정확도가 낮을 수 있습니다.";
 		}
 
 		PlaylistAnalysis analysis = analysisRepository.saveAndFlush(new PlaylistAnalysis(
@@ -231,7 +233,13 @@ public class AnalysisService {
 			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
 
 		List<Map.Entry<Long, Integer>> ranked = occurrenceByArtistId.entrySet().stream()
-			.sorted(Map.Entry.<Long, Integer>comparingByValue().reversed())
+			.sorted(Comparator
+				.<Map.Entry<Long, Integer>>comparingInt(Map.Entry::getValue).reversed()
+				.thenComparing(
+					entry -> popularityOf(artistsById.get(entry.getKey())),
+					Comparator.nullsLast(Comparator.reverseOrder())
+				)
+				.thenComparing(Map.Entry::getKey))
 			.toList();
 
 		List<AnalysisArtist> analysisArtists = new ArrayList<>();
@@ -248,6 +256,10 @@ public class AnalysisService {
 			));
 		}
 		analysisArtistRepository.saveAllAndFlush(analysisArtists);
+	}
+
+	private Short popularityOf(Artist artist) {
+		return artist == null ? null : artist.getPopularity();
 	}
 
 	/** 분석 아티스트에 아티스트명을 채워 응답 DTO로 변환한다. */

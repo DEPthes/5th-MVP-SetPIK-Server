@@ -122,6 +122,17 @@ class SpotifyPlaylistClientTest {
 				  "next": null
 				}
 				""", MediaType.APPLICATION_JSON));
+		server.expect(requestTo("https://api.spotify.com/v1/artists/artist-1"))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+			.andRespond(withSuccess("""
+				{
+				  "id": "artist-1",
+				  "name": "Artist A",
+				  "images": [{"url": "https://image/artist"}],
+				  "popularity": 87,
+				  "external_urls": {"spotify": "https://open.spotify.com/artist/artist-1"}
+				}
+				""", MediaType.APPLICATION_JSON));
 
 		List<SpotifyPlaylistSnapshot> result = client.fetchMyPlaylists("access-token");
 
@@ -133,6 +144,10 @@ class SpotifyPlaylistClientTest {
 		assertThat(result.get(0).tracks().get(0).artists()).hasSize(1);
 		assertThat(result.get(0).tracks().get(0).artists().get(0).artistName())
 			.isEqualTo("Artist A");
+		assertThat(result.get(0).tracks().get(0).artists().get(0).imageUrl())
+			.isEqualTo("https://image/artist");
+		assertThat(result.get(0).tracks().get(0).artists().get(0).popularity())
+			.isEqualTo((short) 87);
 		server.verify();
 	}
 }

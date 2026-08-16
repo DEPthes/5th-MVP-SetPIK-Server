@@ -54,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PlaylistService {
 	private static final int MAX_PAGE_SIZE = 100;
+	private static final int RECENT_SELECTION_LIMIT = 5;
 	private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
 		"playlistId", "playlistName", "trackCount", "lastSyncedAt"
 	);
@@ -195,10 +196,13 @@ public class PlaylistService {
 				.orElse(null);
 			if (artist == null) {
 				artist = artistRepository.save(new Artist(
-					source.spotifyArtistId(), source.artistName(), source.spotifyArtistUrl()
+					source.spotifyArtistId(), source.artistName(), source.spotifyArtistUrl(),
+					source.imageUrl(), source.popularity()
 				));
 			} else {
-				artist.syncFromSpotify(source.artistName(), source.spotifyArtistUrl());
+				artist.syncFromSpotify(
+					source.artistName(), source.spotifyArtistUrl(),
+					source.imageUrl(), source.popularity());
 			}
 			trackArtistRepository.save(new TrackArtist(trackId, artist.getArtistId(), artistOrder++));
 		}
@@ -378,8 +382,19 @@ public class PlaylistService {
 		} else {
 			selection.reselect(selectedAt);
 		}
+		trimRecentSelections(userId);
 
 		return PlaylistSelectResponse.from(selection);
+	}
+
+	private void trimRecentSelections(Long userId) {
+		recentSelectionRepository.flush();
+		List<PlaylistRecentSelection> selections =
+			recentSelectionRepository.findByUserIdOrderBySelectedAtDescPlaylistIdDesc(userId);
+		if (selections.size() > RECENT_SELECTION_LIMIT) {
+			recentSelectionRepository.deleteAllInBatch(
+				selections.subList(RECENT_SELECTION_LIMIT, selections.size()));
+		}
 	}
 
 	public PageResponse<RecentSelectionResponse> getRecentSelections(Long userId, Pageable pageable) {

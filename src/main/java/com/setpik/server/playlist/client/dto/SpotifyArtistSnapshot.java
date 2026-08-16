@@ -4,6 +4,15 @@ package com.setpik.server.playlist.client.dto;
 public record SpotifyArtistSnapshot(
 	String spotifyArtistId,
 	String artistName,
-	String spotifyArtistUrl
+	String spotifyArtistUrl,
+	String imageUrl,
+	Short popularity
 ) {
+	public SpotifyArtistSnapshot(
+		String spotifyArtistId,
+		String artistName,
+		String spotifyArtistUrl
+	) {
+		this(spotifyArtistId, artistName, spotifyArtistUrl, null, null);
+	}
 }

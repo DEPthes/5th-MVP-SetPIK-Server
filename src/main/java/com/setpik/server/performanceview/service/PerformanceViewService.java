@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class PerformanceViewService {
+	private static final int RECENT_VIEW_LIMIT = 50;
 
 	private final PerformanceViewRepository performanceViewRepository;
 	private final PlaylistAnalysisRepository analysisRepository;
@@ -74,8 +75,19 @@ public class PerformanceViewService {
 		} else {
 			performanceView.updateViewedAt(viewedAt);
 		}
+		trimRecentViews(userId);
 
 		return PerformanceViewCreateResponse.of(
 			performanceView.getViewId(), created, performanceView.getViewedAt());
+	}
+
+	private void trimRecentViews(Long userId) {
+		performanceViewRepository.flush();
+		List<PerformanceView> views =
+			performanceViewRepository.findByUserIdOrderByViewedAtDescViewIdDesc(userId);
+		if (views.size() > RECENT_VIEW_LIMIT) {
+			performanceViewRepository.deleteAllInBatch(
+				views.subList(RECENT_VIEW_LIMIT, views.size()));
+		}
 	}
 }
