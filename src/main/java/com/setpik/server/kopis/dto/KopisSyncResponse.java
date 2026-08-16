@@ -9,6 +9,7 @@ public record KopisSyncResponse(
 	int fetchedPerformanceCount,
 	int createdPerformanceCount,
 	int updatedPerformanceCount,
+	int failedPerformanceCount,
 	OffsetDateTime syncedAt
 ) {
 }

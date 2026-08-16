@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 /** 기본 CRUD는 JpaRepository가 제공하고 도메인별 조회 메서드는 여기에 추가한다. */
 public interface PerformanceRepository extends JpaRepository<Performance, Long> {
 	Optional<Performance> findByKopisPerformanceId(String kopisPerformanceId);
+	List<Performance> findByKopisPerformanceIdIn(List<String> kopisPerformanceIds);
 
 	Page<Performance> findByIsDeletedFalse(Pageable pageable);
 
