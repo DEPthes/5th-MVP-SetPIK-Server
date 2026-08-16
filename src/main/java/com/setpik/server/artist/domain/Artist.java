@@ -51,10 +51,22 @@ public class Artist extends BaseEntity {
 		String artistName,
 		String spotifyArtistUrl
 	) {
+		this(spotifyArtistId, artistName, spotifyArtistUrl, null, null);
+	}
+
+	public Artist(
+		String spotifyArtistId,
+		String artistName,
+		String spotifyArtistUrl,
+		String imageUrl,
+		Short popularity
+	) {
 		this.spotifyArtistId = spotifyArtistId;
 		this.artistName = artistName;
 		this.normalizedName = normalize(artistName);
 		this.spotifyArtistUrl = spotifyArtistUrl;
+		this.imageUrl = imageUrl;
+		this.popularity = popularity;
 		this.spotifyAvailable = true;
 	}
 
@@ -67,10 +79,21 @@ public class Artist extends BaseEntity {
 	}
 
 	/** 플레이리스트 동기화 응답에 포함된 Spotify 아티스트 정보를 갱신한다. */
-	public void syncFromSpotify(String artistName, String spotifyArtistUrl) {
+	public void syncFromSpotify(
+		String artistName,
+		String spotifyArtistUrl,
+		String imageUrl,
+		Short popularity
+	) {
 		this.artistName = artistName;
 		this.normalizedName = normalize(artistName);
 		this.spotifyArtistUrl = spotifyArtistUrl;
+		if (imageUrl != null) {
+			this.imageUrl = imageUrl;
+		}
+		if (popularity != null) {
+			this.popularity = popularity;
+		}
 		this.spotifyAvailable = true;
 	}
 

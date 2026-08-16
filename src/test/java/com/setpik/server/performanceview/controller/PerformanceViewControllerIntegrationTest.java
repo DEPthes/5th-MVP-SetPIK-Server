@@ -187,6 +187,58 @@ class PerformanceViewControllerIntegrationTest {
 	}
 
 	@Test
+	void keepsOnlyFiftyMostRecentPerformanceViewsPerUser() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User user = userRepository.saveAndFlush(User.createActive(now));
+		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-view-limit", "View Limit Playlist", null, null, false,
+			"spotify-owner", "snapshot-view-limit", 1, user.getUserId()));
+		PlaylistAnalysis analysis = analysisRepository.saveAndFlush(new PlaylistAnalysis(
+			user.getUserId(), playlist.getPlaylistId(), playlist.getSpotifyPlaylistId(),
+			playlist.getPlaylistName(), playlist.getCoverImageUrl(), 1, 1,
+			AnalysisStatus.COMPLETED, null));
+		Venue venue = venueRepository.saveAndFlush(new Venue(
+			"view-limit-venue", "조회 제한 공연장", "서울", null, null, null, null));
+
+		Long oldestViewId = null;
+		for (int index = 0; index < 50; index++) {
+			Performance performance = performanceRepository.saveAndFlush(performance(
+				"view-limit-performance-" + index,
+				"View Limit Performance " + index,
+				null,
+				LocalDate.of(2026, 9, 1).plusDays(index),
+				venue.getVenueId(),
+				now
+			));
+			PerformanceView view = performanceViewRepository.saveAndFlush(new PerformanceView(
+				user.getUserId(), analysis.getAnalysisId(), performance.getPerformanceId(),
+				now.minusMinutes(50L - index)));
+			if (index == 0) {
+				oldestViewId = view.getViewId();
+			}
+		}
+
+		Performance latestPerformance = performanceRepository.saveAndFlush(performance(
+			"view-limit-performance-latest", "Latest View Limit Performance", null,
+			LocalDate.of(2026, 12, 31), venue.getVenueId(), now));
+		String request = "{\"performanceId\":" + latestPerformance.getPerformanceId()
+			+ ",\"analysisId\":" + analysis.getAnalysisId() + "}";
+
+		mockMvc.perform(post("/api/v1/performance-views")
+				.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(request))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.created").value(true));
+
+		var views = performanceViewRepository
+			.findByUserIdOrderByViewedAtDescViewIdDesc(user.getUserId());
+		assertThat(views).hasSize(50);
+		assertThat(views).extracting(PerformanceView::getViewId)
+			.doesNotContain(oldestViewId);
+	}
+
+	@Test
 	void validatesPerformanceViewSaveRequest() throws Exception {
 		LocalDateTime now = LocalDateTime.now();
 		User user = userRepository.saveAndFlush(User.createActive(now));

@@ -8,7 +8,12 @@ import com.setpik.server.playlist.client.dto.SpotifyArtistSnapshot;
 import com.setpik.server.playlist.client.dto.SpotifyTrackSnapshot;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -46,13 +51,102 @@ public class SpotifyPlaylistClient {
 				}
 				offset += page.safeItems().size();
 			}
-			return result;
+			return enrichArtistDetails(accessToken, result);
 		} catch (RestClientResponseException exception) {
 			logSpotifyError(exception);
 			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 조회에 실패했습니다.", exception);
 		} catch (RestClientException exception) {
 			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 조회에 실패했습니다.", exception);
 		}
+	}
+
+	/** 트랙 응답에 없는 아티스트 인기도와 이미지를 상세 API에서 보완한다. */
+	private List<SpotifyPlaylistSnapshot> enrichArtistDetails(
+		String accessToken,
+		List<SpotifyPlaylistSnapshot> playlists
+	) {
+		Set<String> artistIds = playlists.stream()
+			.flatMap(playlist -> playlist.tracks().stream())
+			.flatMap(track -> track.artists().stream())
+			.map(SpotifyArtistSnapshot::spotifyArtistId)
+			.filter(id -> id != null && !id.isBlank())
+			.collect(Collectors.toCollection(LinkedHashSet::new));
+
+		Map<String, SpotifyArtistSnapshot> detailsById = artistIds.stream()
+			.map(id -> fetchArtistDetail(accessToken, id))
+			.filter(java.util.Objects::nonNull)
+			.collect(Collectors.toMap(
+				SpotifyArtistSnapshot::spotifyArtistId,
+				Function.identity()
+			));
+
+		return playlists.stream()
+			.map(playlist -> new SpotifyPlaylistSnapshot(
+				playlist.spotifyPlaylistId(),
+				playlist.playlistName(),
+				playlist.description(),
+				playlist.coverImageUrl(),
+				playlist.isPublic(),
+				playlist.ownerSpotifyUserId(),
+				playlist.snapshotId(),
+				playlist.tracks().stream()
+					.map(track -> enrichTrackArtists(track, detailsById))
+					.toList()
+			))
+			.toList();
+	}
+
+	private SpotifyTrackSnapshot enrichTrackArtists(
+		SpotifyTrackSnapshot track,
+		Map<String, SpotifyArtistSnapshot> detailsById
+	) {
+		return new SpotifyTrackSnapshot(
+			track.spotifyTrackId(),
+			track.trackName(),
+			track.albumName(),
+			track.albumImageUrl(),
+			track.spotifyTrackUrl(),
+			track.previewUrl(),
+			track.durationMs(),
+			track.isPlayable(),
+			track.addedAt(),
+			track.artists().stream()
+				.map(artist -> detailsById.getOrDefault(artist.spotifyArtistId(), artist))
+				.toList()
+		);
+	}
+
+	private SpotifyArtistSnapshot fetchArtistDetail(String accessToken, String artistId) {
+		try {
+			ArtistDetail detail = restClient.get()
+				.uri(API_BASE_URI + "/artists/" + artistId)
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.retrieve()
+				.body(ArtistDetail.class);
+			if (detail == null || detail.id() == null || detail.name() == null) {
+				return null;
+			}
+			return new SpotifyArtistSnapshot(
+				detail.id(),
+				detail.name(),
+				detail.externalUrls() == null ? null : detail.externalUrls().spotify(),
+				firstImageUrl(detail.images()),
+				toPopularity(detail.popularity())
+			);
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			return null;
+		} catch (RestClientException exception) {
+			log.warn("Spotify 아티스트 상세 조회 실패: artistId={}", artistId);
+			return null;
+		}
+	}
+
+	private Short toPopularity(Integer popularity) {
+		if (popularity == null || popularity < 0 || popularity > 100) {
+			return null;
+		}
+		return popularity.shortValue();
 	}
 
 	/** Spotify에 새 플레이리스트를 만들고 플레이리스트 ID를 반환한다. */
@@ -305,6 +399,16 @@ public class SpotifyPlaylistClient {
 	private record ArtistItem(
 		String id,
 		String name,
+		@JsonProperty("external_urls") ExternalUrls externalUrls
+	) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record ArtistDetail(
+		String id,
+		String name,
+		List<Image> images,
+		Integer popularity,
 		@JsonProperty("external_urls") ExternalUrls externalUrls
 	) {
 	}

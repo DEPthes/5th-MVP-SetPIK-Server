@@ -16,6 +16,7 @@ import com.setpik.server.auth.client.SpotifyApiException;
 import com.setpik.server.auth.client.dto.SpotifyTokenResponse;
 import com.setpik.server.auth.security.JwtAccessTokenProvider;
 import com.setpik.server.auth.security.TokenCipher;
+import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.repository.UserRepository;
 import com.setpik.server.playlist.client.SpotifyPlaylistClient;
@@ -63,6 +64,9 @@ class PlaylistControllerIntegrationTest {
 	private PlaylistRecentSelectionRepository recentSelectionRepository;
 
 	@Autowired
+	private ArtistRepository artistRepository;
+
+	@Autowired
 	private JwtAccessTokenProvider accessTokenProvider;
 
 	@Autowired
@@ -95,11 +99,13 @@ class PlaylistControllerIntegrationTest {
 					List.of(
 						new SpotifyArtistSnapshot(
 							"spotify-artist-1", "Artist A",
-							"https://open.spotify.com/artist/spotify-artist-1"
+							"https://open.spotify.com/artist/spotify-artist-1",
+							"https://image/artist-1", (short) 90
 						),
 						new SpotifyArtistSnapshot(
 							"spotify-artist-2", "Artist B",
-							"https://open.spotify.com/artist/spotify-artist-2"
+							"https://open.spotify.com/artist/spotify-artist-2",
+							"https://image/artist-2", (short) 70
 						)
 					)
 				))
@@ -119,6 +125,10 @@ class PlaylistControllerIntegrationTest {
 		SpotifyPlaylist syncedPlaylist = playlistRepository
 			.findByUserIdAndSpotifyPlaylistId(user.getUserId(), "spotify-playlist-1")
 			.orElseThrow();
+		var syncedArtist = artistRepository.findBySpotifyArtistId("spotify-artist-1")
+			.orElseThrow();
+		assertThat(syncedArtist.getPopularity()).isEqualTo((short) 90);
+		assertThat(syncedArtist.getImageUrl()).isEqualTo("https://image/artist-1");
 
 		mockMvc.perform(get("/api/v1/playlists/{playlistId}/tracks", syncedPlaylist.getPlaylistId())
 				.param("page", "0")
@@ -390,6 +400,38 @@ class PlaylistControllerIntegrationTest {
 			.andExpect(jsonPath("$.code").value(1100));
 
 		assertThat(recentSelectionRepository.count()).isEqualTo(1);
+	}
+
+	@Test
+	void keepsOnlyFiveMostRecentPlaylistSelectionsPerUser() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User user = userRepository.saveAndFlush(User.createActive(now));
+		List<SpotifyPlaylist> playlists = new java.util.ArrayList<>();
+		for (int index = 1; index <= 6; index++) {
+			playlists.add(playlistRepository.saveAndFlush(new SpotifyPlaylist(
+				"spotify-recent-limit-" + index,
+				"Recent Playlist " + index,
+				null,
+				null,
+				false,
+				"spotify-owner",
+				"snapshot-recent-limit-" + index,
+				1,
+				user.getUserId()
+			)));
+		}
+
+		for (SpotifyPlaylist playlist : playlists) {
+			mockMvc.perform(post("/api/v1/playlists/{playlistId}/select", playlist.getPlaylistId())
+					.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId())))
+				.andExpect(status().isCreated());
+		}
+
+		List<PlaylistRecentSelection> selections = recentSelectionRepository
+			.findByUserIdOrderBySelectedAtDescPlaylistIdDesc(user.getUserId());
+		assertThat(selections).hasSize(5);
+		assertThat(selections).extracting(PlaylistRecentSelection::getPlaylistId)
+			.doesNotContain(playlists.get(0).getPlaylistId());
 	}
 
 	@Test
