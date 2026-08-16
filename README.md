@@ -197,6 +197,17 @@ phpMyAdmin 접속 정보:
 - 테스트 실행은 H2 메모리 DB를 사용합니다.
 - 테스트 프로필에서는 Flyway를 비활성화했습니다.
 
+## CI
+
+GitHub Actions는 `main` 대상 Pull Request와 `main` 브랜치 Push에서 자동으로 실행됩니다.
+
+- Java 17 및 Gradle Wrapper 사용
+- 전체 테스트 실행
+- Spring Boot 실행 JAR 생성 검증
+- 실패 시 GitHub Actions의 Artifacts에서 테스트 리포트 확인 가능
+
+PR을 병합하기 전에 GitHub의 `Test and build` 검사가 통과했는지 확인합니다.
+
 ## 주요 파일
 
 - `build.gradle`: 서버 의존성 및 빌드 설정
