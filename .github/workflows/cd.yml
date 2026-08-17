@@ -1,0 +1,70 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production EC2
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - setpik-prod
+    timeout-minutes: 20
+
+    steps:
+      - name: Pull main and deploy containers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cd /opt/setpik/app
+          git fetch origin main
+          git switch main
+          git pull --ff-only origin main
+
+          docker compose --env-file .env \
+            -f docker-compose.prod.yml \
+            up -d --build --remove-orphans
+
+      - name: Verify application health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cd /opt/setpik/app
+          for attempt in {1..36}; do
+            if curl --fail --silent \
+              http://127.0.0.1:8080/actuator/health > /dev/null; then
+              echo "SetPIK deployment is healthy."
+              exit 0
+            fi
+
+            echo "Waiting for application health (${attempt}/36)..."
+            sleep 5
+          done
+
+          docker compose --env-file .env \
+            -f docker-compose.prod.yml \
+            logs app --tail=200
+          exit 1
+
+      - name: Remove unused Docker images
+        if: success()
+        run: docker image prune -f
