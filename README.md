@@ -208,6 +208,68 @@ GitHub Actions는 `main` 대상 Pull Request와 `main` 브랜치 Push에서 자�
 
 PR을 병합하기 전에 GitHub의 `Test and build` 검사가 통과했는지 확인합니다.
 
+## EC2 운영 배포
+
+운영 배포는 로컬 개발용 `docker-compose.yml`과 분리된
+`docker-compose.prod.yml`을 사용합니다. 운영 구성에서는 MySQL과
+phpMyAdmin 포트를 외부에 노출하지 않고 Spring Boot의 `8080` 포트만
+공개합니다.
+
+### 최초 수동 배포
+
+EC2에서 저장소를 받은 뒤 운영 환경변수 파일을 생성합니다.
+
+```bash
+cd /opt/setpik
+git clone https://github.com/DEPthes/5th-MVP-SetPIK-Server.git app
+cd app
+cp .env.production.example .env
+chmod 600 .env
+nano .env
+```
+
+`.env`의 `CHANGE_ME` 값은 모두 실제 운영 값으로 변경합니다. JWT와 토큰
+암호화 키는 서로 다른 값으로 생성합니다.
+
+```bash
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+HTTPS 연결 전에는 Health API 검증만 수행합니다. Spotify OAuth 운영
+Redirect URI는 API Gateway 또는 도메인으로 만든 HTTPS 백엔드 주소가
+준비된 후 입력하고 Spotify Dashboard에도 동일하게 등록합니다.
+
+구성을 검증하고 컨테이너를 실행합니다.
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml config --quiet
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env -f docker-compose.prod.yml ps
+```
+
+애플리케이션 상태와 로그를 확인합니다.
+
+```bash
+curl --fail http://127.0.0.1:8080/api/v1/health
+docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 app
+```
+
+외부에서는 EC2 보안 그룹에 등록된 관리자 IP에서만 아래 주소로 초기
+상태를 확인합니다.
+
+```text
+http://EC2_ELASTIC_IP:8080/api/v1/health
+http://EC2_ELASTIC_IP:8080/swagger-ui/index.html
+```
+
+컨테이너를 중지할 때는 MySQL 볼륨을 보존하기 위해 `-v` 옵션을 사용하지
+않습니다.
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml down
+```
+
 ## 주요 파일
 
 - `build.gradle`: 서버 의존성 및 빌드 설정
