@@ -1,0 +1,17 @@
+.git
+.github
+.gradle
+.gradle-home
+.idea
+.vscode
+build
+outputs
+tmp
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.iml
+README.md
+CONTRIBUTING.md
+
