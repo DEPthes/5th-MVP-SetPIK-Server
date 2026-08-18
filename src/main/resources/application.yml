@@ -68,6 +68,7 @@ setpik:
     refresh-cookie-name: refreshToken
     refresh-cookie-path: /api/v1/auth
     secure-cookie: ${AUTH_COOKIE_SECURE:false}
+    refresh-cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
     success-redirect-uri: ${OAUTH_SUCCESS_REDIRECT_URI:http://localhost:3000/oauth/success}
     failure-redirect-uri: ${OAUTH_FAILURE_REDIRECT_URI:http://localhost:3000/oauth/failure}
   jwt:

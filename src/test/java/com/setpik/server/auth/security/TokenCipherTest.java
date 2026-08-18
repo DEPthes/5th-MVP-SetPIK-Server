@@ -16,6 +16,7 @@ class TokenCipherTest {
 			"refreshToken",
 			"/api/v1/auth",
 			false,
+			"Lax",
 			"http://localhost:3000/oauth/success",
 			"http://localhost:3000/oauth/failure"
 		);

@@ -2,6 +2,7 @@ package com.setpik.server.auth.config;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -14,6 +15,7 @@ public record SetpikAuthProperties(
 	@NotBlank String refreshCookieName,
 	@NotBlank String refreshCookiePath,
 	boolean secureCookie,
+	@NotBlank @Pattern(regexp = "Strict|Lax|None") String refreshCookieSameSite,
 	@NotBlank String successRedirectUri,
 	@NotBlank String failureRedirectUri
 ) {

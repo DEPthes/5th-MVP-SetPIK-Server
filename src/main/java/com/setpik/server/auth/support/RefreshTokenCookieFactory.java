@@ -31,7 +31,7 @@ public class RefreshTokenCookieFactory {
 		return ResponseCookie.from(properties.refreshCookieName(), value)
 			.httpOnly(true)
 			.secure(properties.secureCookie())
-			.sameSite("Lax")
+			.sameSite(properties.refreshCookieSameSite())
 			.path(properties.refreshCookiePath());
 	}
 }
