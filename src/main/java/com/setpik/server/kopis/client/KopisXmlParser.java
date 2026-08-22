@@ -48,6 +48,8 @@ public class KopisXmlParser {
 			firstBookingUrl(row),
 			text(row, "prfstate"),
 			nullIfBlank(text(row, "pcseguidance")),
+			nullIfBlank(text(row, "prfruntime")),
+			nullIfBlank(text(row, "prfage")),
 			text(row, "area"),
 			text(row, "genrenm"),
 			text(row, "mt10id"),

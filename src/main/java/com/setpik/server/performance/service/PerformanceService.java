@@ -75,8 +75,14 @@ public class PerformanceService {
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 		Venue venue = venueRepository.findById(performance.getVenueId())
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+		List<PerformanceArtist> lineup = performanceArtistRepository
+			.findByPerformanceIdOrderByLineupOrderAsc(performanceId);
+		Map<Long, Artist> artistById = artistRepository
+			.findAllById(lineup.stream().map(PerformanceArtist::getArtistId).toList())
+			.stream()
+			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
 
-		return PerformanceDetailResponse.of(performance, venue);
+		return PerformanceDetailResponse.of(performance, venue, lineup, artistById);
 	}
 
 	public List<TicketScheduleResponse> getTicketSchedules(Long performanceId) {
