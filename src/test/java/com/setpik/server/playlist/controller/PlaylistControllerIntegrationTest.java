@@ -33,6 +33,7 @@ import com.setpik.server.spotify.domain.SpotifyAccount;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,7 +149,11 @@ class PlaylistControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].trackName").value("Track"))
 			.andExpect(jsonPath("$.result.content[0].spotifyTrackId")
 				.value("spotify-track-1"))
+			.andExpect(jsonPath("$.result.content[0].albumName").value("Album"))
 			.andExpect(jsonPath("$.result.content[0].albumImageUrl").value(nullValue()))
+			.andExpect(jsonPath("$.result.content[0].addedAt")
+				.value(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(now)))
+			.andExpect(jsonPath("$.result.content[0].durationMs").value(180000))
 			.andExpect(jsonPath("$.result.content[0].artists.length()").value(2))
 			.andExpect(jsonPath("$.result.content[0].artists[0].artistId").isNumber())
 			.andExpect(jsonPath("$.result.content[0].artists[0].artistName").value("Artist A"))
