@@ -29,11 +29,20 @@ public class SpotifyAuthService {
 	 */
 	public SpotifyLoginUrlResponse createLoginUrl(String redirectUri) {
 		String validatedRedirectUri = validateRedirectUri(redirectUri);
+		return createLoginUrlWithRedirectUri(validatedRedirectUri);
+	}
+
+	/** 브라우저 직접 이동 방식에서는 서버에 등록된 콜백 URI를 사용한다. */
+	public SpotifyLoginUrlResponse createLoginUrl() {
+		return createLoginUrlWithRedirectUri(properties.redirectUri());
+	}
+
+	private SpotifyLoginUrlResponse createLoginUrlWithRedirectUri(String redirectUri) {
 		String state = stateGenerator.generate();
 		String loginUrl = UriComponentsBuilder.fromUriString(properties.authorizationUri())
 			.queryParam("client_id", properties.clientId())
 			.queryParam("response_type", "code")
-			.queryParam("redirect_uri", validatedRedirectUri)
+			.queryParam("redirect_uri", redirectUri)
 			.queryParam("state", state)
 			.queryParam("scope", String.join(" ", properties.scopes()))
 			.build()
