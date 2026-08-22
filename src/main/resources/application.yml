@@ -58,6 +58,7 @@ spotify:
       - playlist-modify-private
       - playlist-modify-public
     state-cookie-name: setpik_spotify_oauth_state
+    frontend-cookie-name: setpik_spotify_frontend_origin
     state-cookie-max-age: 10m
     secure-cookie: ${SPOTIFY_COOKIE_SECURE:false}
 
@@ -71,8 +72,8 @@ setpik:
     refresh-cookie-path: /api/v1/auth
     secure-cookie: ${AUTH_COOKIE_SECURE:false}
     refresh-cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
-    success-redirect-uri: ${OAUTH_SUCCESS_REDIRECT_URI:http://localhost:3000/oauth/success}
-    failure-redirect-uri: ${OAUTH_FAILURE_REDIRECT_URI:http://localhost:3000/oauth/failure}
+    success-redirect-uri: ${OAUTH_SUCCESS_REDIRECT_URI:http://localhost:5173/oauth/success}
+    failure-redirect-uri: ${OAUTH_FAILURE_REDIRECT_URI:http://localhost:5173/oauth/failure}
   jwt:
     secret: ${JWT_SECRET:}
     access-token-expiration: ${ACCESS_TOKEN_EXPIRATION:30m}

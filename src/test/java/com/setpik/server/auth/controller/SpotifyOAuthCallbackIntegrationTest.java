@@ -14,6 +14,7 @@ import com.setpik.server.auth.client.dto.SpotifyProfileResponse;
 import com.setpik.server.auth.client.dto.SpotifyProfileResponse.SpotifyImageResponse;
 import com.setpik.server.auth.client.dto.SpotifyTokenResponse;
 import com.setpik.server.auth.repository.AuthRefreshTokenRepository;
+import com.setpik.server.auth.support.SpotifyOAuthFrontendCookieFactory;
 import com.setpik.server.member.domain.UserStatus;
 import com.setpik.server.member.repository.UserRepository;
 import com.setpik.server.spotify.domain.ConnectionStatus;
@@ -40,6 +41,7 @@ class SpotifyOAuthCallbackIntegrationTest {
 
 	private static final String CALLBACK_URL = "/api/v1/auth/spotify/callback";
 	private static final String STATE_COOKIE_NAME = "setpik_spotify_oauth_state";
+	private static final String FRONTEND_COOKIE_NAME = "setpik_spotify_frontend_origin";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -56,6 +58,9 @@ class SpotifyOAuthCallbackIntegrationTest {
 	@Autowired
 	private AuthRefreshTokenRepository authRefreshTokenRepository;
 
+	@Autowired
+	private SpotifyOAuthFrontendCookieFactory frontendCookieFactory;
+
 	@MockitoBean
 	private SpotifyOAuthClient spotifyOAuthClient;
 
@@ -66,7 +71,7 @@ class SpotifyOAuthCallbackIntegrationTest {
 
 		MvcResult result = performCallback("authorization-code", state, state)
 			.andExpect(status().isFound())
-			.andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000/oauth/success"))
+			.andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173/oauth/success"))
 			.andReturn();
 
 		assertThat(userRepository.count()).isEqualTo(1);
@@ -105,12 +110,43 @@ class SpotifyOAuthCallbackIntegrationTest {
 	}
 
 	@Test
+	void redirectsToLocalFrontendSelectedAtLoginStart() throws Exception {
+		String state = "valid-oauth-state";
+		stubSpotifyLogin("spotify-local-user", "local-user", "access-token", "refresh-token");
+		String frontendCookie = frontendCookieFactory.create("http://localhost:5173").getValue();
+
+		mockMvc.perform(get(CALLBACK_URL)
+				.param("code", "authorization-code")
+				.param("state", state)
+				.cookie(new Cookie(STATE_COOKIE_NAME, state))
+				.cookie(new Cookie(FRONTEND_COOKIE_NAME, frontendCookie)))
+			.andExpect(status().isFound())
+			.andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173/oauth/success"));
+	}
+
+	@Test
+	void redirectsOAuthFailureToLocalFrontendSelectedAtLoginStart() throws Exception {
+		String frontendCookie = frontendCookieFactory.create("http://localhost:5173").getValue();
+
+		mockMvc.perform(get(CALLBACK_URL)
+				.param("code", "authorization-code")
+				.param("state", "returned-state")
+				.cookie(new Cookie(STATE_COOKIE_NAME, "stored-state"))
+				.cookie(new Cookie(FRONTEND_COOKIE_NAME, frontendCookie)))
+			.andExpect(status().isFound())
+			.andExpect(header().string(
+				HttpHeaders.LOCATION,
+				"http://localhost:5173/oauth/failure?code=2000"
+			));
+	}
+
+	@Test
 	void redirectsToCode2000WhenStateDoesNotMatch() throws Exception {
 		performCallback("authorization-code", "returned-state", "stored-state")
 			.andExpect(status().isFound())
 			.andExpect(header().string(
 				HttpHeaders.LOCATION,
-				"http://localhost:3000/oauth/failure?code=2000"
+				"http://localhost:5173/oauth/failure?code=2000"
 			));
 
 		verifyNoInteractions(spotifyOAuthClient);
@@ -126,7 +162,7 @@ class SpotifyOAuthCallbackIntegrationTest {
 			.andExpect(status().isFound())
 			.andExpect(header().string(
 				HttpHeaders.LOCATION,
-				"http://localhost:3000/oauth/failure?code=2200"
+				"http://localhost:5173/oauth/failure?code=2200"
 			));
 	}
 

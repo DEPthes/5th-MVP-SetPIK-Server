@@ -33,6 +33,7 @@ class SpotifyAuthServiceTest {
 			REDIRECT_URI,
 			List.of("user-read-email", "playlist-read-private"),
 			"setpik_spotify_oauth_state",
+			"setpik_spotify_frontend_origin",
 			Duration.ofMinutes(10),
 			false
 		);
