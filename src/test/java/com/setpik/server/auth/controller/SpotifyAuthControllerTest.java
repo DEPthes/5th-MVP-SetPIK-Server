@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -56,7 +57,8 @@ class SpotifyAuthControllerTest {
 
 	@Test
 	void setsStateCookieAndRedirectsBrowserToSpotify() throws Exception {
-		mockMvc.perform(get(LOGIN))
+		MvcResult result = mockMvc.perform(get(LOGIN)
+				.param("frontendUrl", "http://localhost:5173"))
 			.andExpect(status().isFound())
 			.andExpect(header().string(HttpHeaders.LOCATION,
 				org.hamcrest.Matchers.startsWith("https://accounts.spotify.com/authorize?")))
@@ -66,7 +68,20 @@ class SpotifyAuthControllerTest {
 				org.hamcrest.Matchers.containsString("HttpOnly")))
 			.andExpect(header().string(HttpHeaders.SET_COOKIE,
 				org.hamcrest.Matchers.containsString("SameSite=Lax")))
-			.andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+			.andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+			.andReturn();
+
+		List<String> setCookies = result.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
+		assertThat(setCookies).anyMatch(cookie -> cookie.startsWith("setpik_spotify_oauth_state="));
+		assertThat(setCookies).anyMatch(cookie -> cookie.startsWith("setpik_spotify_frontend_origin="));
+	}
+
+	@Test
+	void rejectsFrontendUrlOutsideAllowList() throws Exception {
+		mockMvc.perform(get(LOGIN).param("frontendUrl", "https://attacker.example"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.isSuccess").value(false))
+			.andExpect(jsonPath("$.code").value(2000));
 	}
 
 	@Test

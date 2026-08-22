@@ -1,11 +1,12 @@
 package com.setpik.server.auth.controller;
 
-import com.setpik.server.auth.config.SetpikAuthProperties;
 import com.setpik.server.auth.dto.SpotifyLoginUrlResponse;
 import com.setpik.server.auth.dto.SpotifyCallbackResult;
 import com.setpik.server.auth.exception.SpotifyOAuthCallbackException;
 import com.setpik.server.auth.service.SpotifyAuthService;
 import com.setpik.server.auth.service.SpotifyOAuthCallbackService;
+import com.setpik.server.auth.service.SpotifyOAuthFrontendRedirectService;
+import com.setpik.server.auth.support.SpotifyOAuthFrontendCookieFactory;
 import com.setpik.server.auth.support.SpotifyOAuthStateCookieFactory;
 import com.setpik.server.auth.support.RefreshTokenCookieFactory;
 import com.setpik.server.common.api.ApiResponse;
@@ -25,7 +26,6 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Validated
 @RestController
@@ -35,21 +35,24 @@ public class SpotifyAuthController {
 	private final SpotifyAuthService spotifyAuthService;
 	private final SpotifyOAuthCallbackService spotifyOAuthCallbackService;
 	private final SpotifyOAuthStateCookieFactory stateCookieFactory;
+	private final SpotifyOAuthFrontendCookieFactory frontendCookieFactory;
+	private final SpotifyOAuthFrontendRedirectService frontendRedirectService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
-	private final SetpikAuthProperties authProperties;
 
 	public SpotifyAuthController(
 		SpotifyAuthService spotifyAuthService,
 		SpotifyOAuthCallbackService spotifyOAuthCallbackService,
 		SpotifyOAuthStateCookieFactory stateCookieFactory,
-		RefreshTokenCookieFactory refreshTokenCookieFactory,
-		SetpikAuthProperties authProperties
+		SpotifyOAuthFrontendCookieFactory frontendCookieFactory,
+		SpotifyOAuthFrontendRedirectService frontendRedirectService,
+		RefreshTokenCookieFactory refreshTokenCookieFactory
 	) {
 		this.spotifyAuthService = spotifyAuthService;
 		this.spotifyOAuthCallbackService = spotifyOAuthCallbackService;
 		this.stateCookieFactory = stateCookieFactory;
+		this.frontendCookieFactory = frontendCookieFactory;
+		this.frontendRedirectService = frontendRedirectService;
 		this.refreshTokenCookieFactory = refreshTokenCookieFactory;
-		this.authProperties = authProperties;
 	}
 
 	@Operation(
@@ -115,12 +118,17 @@ public class SpotifyAuthController {
 		)
 	})
 	@GetMapping("/login")
-	public ResponseEntity<Void> login() {
+	public ResponseEntity<Void> login(
+		@Parameter(description = "로그인 완료 후 돌아갈 허용된 프론트엔드 주소")
+		@RequestParam(required = false) String frontendUrl
+	) {
 		SpotifyLoginUrlResponse result = spotifyAuthService.createLoginUrl();
+		String frontendOrigin = frontendRedirectService.selectFrontendOrigin(frontendUrl);
 
 		return ResponseEntity.status(HttpStatus.FOUND)
 			.location(URI.create(result.loginUrl()))
 			.header(HttpHeaders.SET_COOKIE, stateCookieFactory.create(result.state()).toString())
+			.header(HttpHeaders.SET_COOKIE, frontendCookieFactory.create(frontendOrigin).toString())
 			.header(HttpHeaders.CACHE_CONTROL, "no-store")
 			.build();
 	}
@@ -140,32 +148,32 @@ public class SpotifyAuthController {
 		@RequestParam(required = false) String code,
 		@RequestParam(required = false) String state,
 		@RequestParam(required = false) String error,
-		@CookieValue(name = "${spotify.oauth.state-cookie-name}", required = false) String storedState
+		@CookieValue(name = "${spotify.oauth.state-cookie-name}", required = false) String storedState,
+		@CookieValue(name = "${spotify.oauth.frontend-cookie-name}", required = false) String storedFrontend
 	) {
+		String frontendOrigin = frontendCookieFactory.decode(storedFrontend);
 		// OAuth 콜백은 JSON 대신 명세서에 정의된 302 응답과 쿠키를 반환한다.
 		try {
 			SpotifyCallbackResult result = spotifyOAuthCallbackService
 				.handleCallback(code, state, storedState, error);
 			return ResponseEntity.status(HttpStatus.FOUND)
-				.location(URI.create(authProperties.successRedirectUri()))
+				.location(frontendRedirectService.buildSuccessUri(frontendOrigin))
 				.header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.create(result.refreshToken()).toString())
 				.header(HttpHeaders.SET_COOKIE, stateCookieFactory.delete().toString())
+				.header(HttpHeaders.SET_COOKIE, frontendCookieFactory.delete().toString())
 				.header(HttpHeaders.CACHE_CONTROL, "no-store")
 				.build();
 		} catch (SpotifyOAuthCallbackException exception) {
 			return ResponseEntity.status(HttpStatus.FOUND)
-				.location(buildFailureRedirectUri(exception))
+				.location(frontendRedirectService.buildFailureUri(
+					frontendOrigin,
+					exception.getErrorCode().getCode()
+				))
 				.header(HttpHeaders.SET_COOKIE, stateCookieFactory.delete().toString())
+				.header(HttpHeaders.SET_COOKIE, frontendCookieFactory.delete().toString())
 				.header(HttpHeaders.CACHE_CONTROL, "no-store")
 				.build();
 		}
 	}
 
-	private URI buildFailureRedirectUri(SpotifyOAuthCallbackException exception) {
-		String failureUri = UriComponentsBuilder.fromUriString(authProperties.failureRedirectUri())
-			.queryParam("code", exception.getErrorCode().getCode())
-			.build()
-			.toUriString();
-		return URI.create(failureUri);
-	}
 }

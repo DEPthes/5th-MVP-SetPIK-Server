@@ -17,6 +17,7 @@ public record SpotifyOAuthProperties(
 	@NotBlank String redirectUri,
 	@NotEmpty List<@NotBlank String> scopes,
 	@NotBlank String stateCookieName,
+	@NotBlank String frontendCookieName,
 	@NotNull Duration stateCookieMaxAge,
 	boolean secureCookie
 ) {

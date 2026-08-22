@@ -26,8 +26,8 @@ spotify:
 setpik:
   auth:
     token-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    success-redirect-uri: http://localhost:3000/oauth/success
-    failure-redirect-uri: http://localhost:3000/oauth/failure
+    success-redirect-uri: http://localhost:5173/oauth/success
+    failure-redirect-uri: http://localhost:5173/oauth/failure
   jwt:
     secret: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     access-token-expiration: 30m
