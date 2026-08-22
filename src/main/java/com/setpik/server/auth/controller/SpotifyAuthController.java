@@ -105,6 +105,27 @@ public class SpotifyAuthController {
 	}
 
 	@Operation(
+		summary = "Spotify 로그인 시작",
+		description = "state 쿠키를 설정한 뒤 Spotify OAuth 인가 페이지로 바로 이동합니다."
+	)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "302",
+			description = "state 쿠키 설정 후 Spotify 로그인 페이지로 이동"
+		)
+	})
+	@GetMapping("/login")
+	public ResponseEntity<Void> login() {
+		SpotifyLoginUrlResponse result = spotifyAuthService.createLoginUrl();
+
+		return ResponseEntity.status(HttpStatus.FOUND)
+			.location(URI.create(result.loginUrl()))
+			.header(HttpHeaders.SET_COOKIE, stateCookieFactory.create(result.state()).toString())
+			.header(HttpHeaders.CACHE_CONTROL, "no-store")
+			.build();
+	}
+
+	@Operation(
 		summary = "Spotify OAuth 콜백 처리",
 		description = "Spotify 인증 코드를 처리하고 Refresh Token 쿠키 설정 후 프론트엔드로 리다이렉트합니다."
 	)

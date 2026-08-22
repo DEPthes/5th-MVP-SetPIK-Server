@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class SpotifyAuthControllerTest {
 
 	private static final String LOGIN_URL = "/api/v1/auth/spotify/login-url";
+	private static final String LOGIN = "/api/v1/auth/spotify/login";
 	private static final String REDIRECT_URI = "http://localhost:8080/api/v1/auth/spotify/callback";
 
 	@Autowired
@@ -51,6 +52,21 @@ class SpotifyAuthControllerTest {
 
 		assertThat(loginUrl).contains("state=" + state);
 		assertThat(setCookie).contains("setpik_spotify_oauth_state=" + state);
+	}
+
+	@Test
+	void setsStateCookieAndRedirectsBrowserToSpotify() throws Exception {
+		mockMvc.perform(get(LOGIN))
+			.andExpect(status().isFound())
+			.andExpect(header().string(HttpHeaders.LOCATION,
+				org.hamcrest.Matchers.startsWith("https://accounts.spotify.com/authorize?")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE,
+				org.hamcrest.Matchers.containsString("setpik_spotify_oauth_state=")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE,
+				org.hamcrest.Matchers.containsString("HttpOnly")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE,
+				org.hamcrest.Matchers.containsString("SameSite=Lax")))
+			.andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
 	}
 
 	@Test
