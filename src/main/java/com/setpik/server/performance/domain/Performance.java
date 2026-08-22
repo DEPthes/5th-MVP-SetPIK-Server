@@ -50,6 +50,12 @@ public class Performance extends BaseEntity {
 	@Column(name = "ticket_price_text", nullable = true, length = 255)
 	private String ticketPriceText;
 
+	@Column(name = "running_time", nullable = true, length = 255)
+	private String runningTime;
+
+	@Column(name = "age_restriction", nullable = true, length = 255)
+	private String ageRestriction;
+
 	@Column(name = "favorite_count", nullable = false)
 	private Integer favoriteCount;
 
@@ -68,16 +74,32 @@ public class Performance extends BaseEntity {
 	public Performance(String kopisPerformanceId, String performanceName, LocalDate startDate,
 		LocalDate endDate, String posterUrl, String bookingUrl, PerformanceStatus performanceStatus,
 		String priceType, String ticketPriceText, LocalDateTime lastSyncedAt, Long venueId) {
+		this(kopisPerformanceId, performanceName, startDate, endDate, posterUrl, bookingUrl,
+			performanceStatus, priceType, ticketPriceText, null, null, lastSyncedAt, venueId);
+	}
+
+	public Performance(String kopisPerformanceId, String performanceName, LocalDate startDate,
+		LocalDate endDate, String posterUrl, String bookingUrl, PerformanceStatus performanceStatus,
+		String priceType, String ticketPriceText, String runningTime, String ageRestriction,
+		LocalDateTime lastSyncedAt, Long venueId) {
 		this.kopisPerformanceId = kopisPerformanceId;
 		this.favoriteCount = 0;
 		this.isDeleted = false;
 		syncFromKopis(performanceName, startDate, endDate, posterUrl, bookingUrl,
-			performanceStatus, priceType, ticketPriceText, lastSyncedAt, venueId);
+			performanceStatus, priceType, ticketPriceText, runningTime, ageRestriction, lastSyncedAt, venueId);
 	}
 
 	public void syncFromKopis(String performanceName, LocalDate startDate, LocalDate endDate,
 		String posterUrl, String bookingUrl, PerformanceStatus performanceStatus, String priceType,
 		String ticketPriceText, LocalDateTime lastSyncedAt, Long venueId) {
+		syncFromKopis(performanceName, startDate, endDate, posterUrl, bookingUrl,
+			performanceStatus, priceType, ticketPriceText, null, null, lastSyncedAt, venueId);
+	}
+
+	public void syncFromKopis(String performanceName, LocalDate startDate, LocalDate endDate,
+		String posterUrl, String bookingUrl, PerformanceStatus performanceStatus, String priceType,
+		String ticketPriceText, String runningTime, String ageRestriction,
+		LocalDateTime lastSyncedAt, Long venueId) {
 		this.performanceName = performanceName;
 		this.startDate = startDate;
 		this.endDate = endDate;
@@ -86,6 +108,8 @@ public class Performance extends BaseEntity {
 		this.performanceStatus = performanceStatus;
 		this.priceType = priceType;
 		this.ticketPriceText = ticketPriceText;
+		this.runningTime = runningTime;
+		this.ageRestriction = ageRestriction;
 		this.lastSyncedAt = lastSyncedAt;
 		this.venueId = venueId;
 		this.isDeleted = false;
@@ -129,6 +153,14 @@ public class Performance extends BaseEntity {
 
 	public String getTicketPriceText() {
 		return ticketPriceText;
+	}
+
+	public String getRunningTime() {
+		return runningTime;
+	}
+
+	public String getAgeRestriction() {
+		return ageRestriction;
 	}
 
 	public Integer getFavoriteCount() {

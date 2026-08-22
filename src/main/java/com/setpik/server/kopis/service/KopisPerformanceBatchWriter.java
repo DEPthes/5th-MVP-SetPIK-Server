@@ -81,12 +81,12 @@ public class KopisPerformanceBatchWriter {
 				performance = new Performance(
 					detail.kopisPerformanceId(), detail.performanceName(), detail.startDate(), detail.endDate(),
 					detail.posterUrl(), detail.bookingUrl(), status(detail.status()), priceType(detail.priceText()),
-					detail.priceText(), syncedAt, venue.getVenueId());
+					detail.priceText(), detail.runningTime(), detail.ageRestriction(), syncedAt, venue.getVenueId());
 			}
 			performance.syncFromKopis(
 				detail.performanceName(), detail.startDate(), detail.endDate(), detail.posterUrl(),
 				detail.bookingUrl(), status(detail.status()), priceType(detail.priceText()),
-				detail.priceText(), syncedAt, venue.getVenueId());
+				detail.priceText(), detail.runningTime(), detail.ageRestriction(), syncedAt, venue.getVenueId());
 			performances.add(performance);
 		}
 		performances = performanceRepository.saveAllAndFlush(performances);

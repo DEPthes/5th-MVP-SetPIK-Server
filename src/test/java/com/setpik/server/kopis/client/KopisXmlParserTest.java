@@ -35,6 +35,8 @@ class KopisXmlParserTest {
 			  <poster>https://example.com/poster.jpg</poster>
 			  <prfstate>공연예정</prfstate>
 			  <pcseguidance>전석 100,000원</pcseguidance>
+			  <prfruntime>180분</prfruntime>
+			  <prfage>만 12세 이상</prfage>
 			  <area>인천광역시</area>
 			  <genrenm>대중음악</genrenm>
 			  <mt10id>FC001</mt10id>
@@ -51,6 +53,9 @@ class KopisXmlParserTest {
 		assertThat(detail.facilityId()).isEqualTo("FC001");
 		assertThat(detail.artistNames()).containsExactly("Artist A", "Artist B");
 		assertThat(detail.bookingUrl()).isEqualTo("https://tickets.example.com/1");
+		assertThat(detail.priceText()).isEqualTo("전석 100,000원");
+		assertThat(detail.runningTime()).isEqualTo("180분");
+		assertThat(detail.ageRestriction()).isEqualTo("만 12세 이상");
 	}
 
 	@Test

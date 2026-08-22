@@ -131,6 +131,9 @@ class PerformanceServiceTest {
 		when(performance.getStartDate()).thenReturn(java.time.LocalDate.of(2026, 8, 15));
 		when(performance.getEndDate()).thenReturn(java.time.LocalDate.of(2026, 8, 17));
 		when(performance.getBookingUrl()).thenReturn("https://tickets.example.com/performances/1001");
+		when(performance.getTicketPriceText()).thenReturn("1일권 120,000원");
+		when(performance.getRunningTime()).thenReturn("180분");
+		when(performance.getAgeRestriction()).thenReturn("만 12세 이상");
 		when(performance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
 		when(performance.getVenueId()).thenReturn(77L);
 		when(performanceRepository.findByPerformanceIdAndIsDeletedFalse(1001L))
@@ -142,12 +145,31 @@ class PerformanceServiceTest {
 		when(venue.getCity()).thenReturn("인천");
 		when(venueRepository.findById(77L)).thenReturn(Optional.of(venue));
 
+		PerformanceArtist performanceArtist = mock(PerformanceArtist.class);
+		when(performanceArtist.getArtistId()).thenReturn(7L);
+		when(performanceArtist.getIsHeadliner()).thenReturn(false);
+		when(performanceArtist.getLineupOrder()).thenReturn(1L);
+		when(performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(1001L))
+			.thenReturn(List.of(performanceArtist));
+		com.setpik.server.artist.domain.Artist artist = mock(com.setpik.server.artist.domain.Artist.class);
+		when(artist.getArtistId()).thenReturn(7L);
+		when(artist.getArtistName()).thenReturn("Artist A");
+		when(artistRepository.findAllById(List.of(7L))).thenReturn(List.of(artist));
+
 		PerformanceDetailResponse result = service.getPerformance(1001L);
 
 		assertThat(result.performanceId()).isEqualTo(1001L);
 		assertThat(result.performanceStatus()).isEqualTo("ON_SALE");
 		assertThat(result.venue().venueName()).isEqualTo("송도달빛축제공원");
 		assertThat(result.venue().city()).isEqualTo("인천");
+		assertThat(result.ticketPriceText()).isEqualTo("1일권 120,000원");
+		assertThat(result.runningTime()).isEqualTo("180분");
+		assertThat(result.ageRestriction()).isEqualTo("만 12세 이상");
+		assertThat(result.artists()).singleElement().satisfies(response -> {
+			assertThat(response.artistId()).isEqualTo(7L);
+			assertThat(response.artistName()).isEqualTo("Artist A");
+			assertThat(response.lineupOrder()).isEqualTo(1L);
+		});
 	}
 
 	@Test
