@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -164,6 +165,19 @@ class PlaylistControllerIntegrationTest {
 		mockMvc.perform(post("/api/v1/playlists/sync"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value(2001));
+	}
+
+	@Test
+	void allowsCorsPreflightForPlaylistSyncWithoutBearerToken() throws Exception {
+		mockMvc.perform(options("/api/v1/playlists/sync")
+				.header(HttpHeaders.ORIGIN, "https://5th-mvp-set-pik-web.vercel.app")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+					"authorization,content-type"))
+			.andExpect(status().is2xxSuccessful())
+			.andExpect(result -> assertThat(result.getResponse()
+				.getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
+				.isEqualTo("https://5th-mvp-set-pik-web.vercel.app"));
 	}
 
 	@Test
