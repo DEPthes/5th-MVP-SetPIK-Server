@@ -1,9 +1,11 @@
 package com.setpik.server.artist.client;
 
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -29,11 +31,11 @@ public class WikidataArtistAliasClient {
 
 	public LookupResult resolve(String kopisArtistName) {
 		try {
+			String requestUri = "/sparql?query="
+				+ UriUtils.encodeQueryParam(exactAliasQuery(kopisArtistName), StandardCharsets.UTF_8)
+				+ "&format=json";
 			WikidataResponse response = restClient.get()
-				.uri(builder -> builder.path("/sparql")
-					.queryParam("query", exactAliasQuery(kopisArtistName))
-					.queryParam("format", "json")
-					.build())
+				.uri(requestUri)
 				.accept(MediaType.APPLICATION_JSON)
 				.retrieve()
 				.body(WikidataResponse.class);
