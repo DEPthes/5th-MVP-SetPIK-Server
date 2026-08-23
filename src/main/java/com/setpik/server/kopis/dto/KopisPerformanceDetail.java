@@ -18,7 +18,8 @@ public record KopisPerformanceDetail(
 	String genreName,
 	String facilityId,
 	String venueName,
-	List<String> artistNames
+	List<String> artistNames,
+	boolean festival
 ) {
 	public KopisPerformanceDetail(
 		String kopisPerformanceId,
@@ -36,6 +37,6 @@ public record KopisPerformanceDetail(
 		List<String> artistNames
 	) {
 		this(kopisPerformanceId, performanceName, startDate, endDate, posterUrl, bookingUrl,
-			status, priceText, null, null, area, genreName, facilityId, venueName, artistNames);
+			status, priceText, null, null, area, genreName, facilityId, venueName, artistNames, false);
 	}
 }

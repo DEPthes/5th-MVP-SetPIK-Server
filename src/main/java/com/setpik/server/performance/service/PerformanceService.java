@@ -99,8 +99,14 @@ public class PerformanceService {
 		if (!playlistAnalysisRepository.existsByAnalysisIdAndUserId(analysisId, userId)) {
 			throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
 		}
-		Pageable pageable = PageRequest.of(page, size, recommendationSort(sort));
-		Page<PerformanceMatch> matches = performanceMatchRepository.findVisibleByAnalysisId(analysisId, pageable);
+		Page<PerformanceMatch> matches;
+		if ("matchPriority,asc".equals(sort)) {
+			matches = performanceMatchRepository.findVisibleByAnalysisIdInRecommendationOrder(
+				analysisId, PageRequest.of(page, size));
+		} else {
+			Pageable pageable = PageRequest.of(page, size, recommendationSort(sort));
+			matches = performanceMatchRepository.findVisibleByAnalysisId(analysisId, pageable);
+		}
 
 		Map<Long, Performance> performanceById = performanceRepository
 			.findAllById(matches.getContent().stream().map(PerformanceMatch::getPerformanceId).distinct().toList())

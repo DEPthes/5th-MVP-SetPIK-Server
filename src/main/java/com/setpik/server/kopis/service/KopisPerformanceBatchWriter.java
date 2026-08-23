@@ -10,10 +10,14 @@ import com.setpik.server.performance.domain.Performance;
 import com.setpik.server.performance.domain.PerformanceArtist;
 import com.setpik.server.performance.domain.PerformanceGenre;
 import com.setpik.server.performance.domain.PerformanceStatus;
+import com.setpik.server.performance.domain.PerformanceType;
+import com.setpik.server.performance.domain.PerformanceTypeMap;
 import com.setpik.server.performance.domain.Venue;
 import com.setpik.server.performance.repository.PerformanceArtistRepository;
 import com.setpik.server.performance.repository.PerformanceGenreRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
+import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -30,6 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class KopisPerformanceBatchWriter {
+	private static final String SOLO_CONCERT = "SOLO_CONCERT";
+	private static final String JOINT_CONCERT = "JOINT_CONCERT";
+	private static final String FESTIVAL = "FESTIVAL";
 
 	private final VenueRepository venueRepository;
 	private final PerformanceRepository performanceRepository;
@@ -37,6 +44,8 @@ public class KopisPerformanceBatchWriter {
 	private final GenreRepository genreRepository;
 	private final PerformanceArtistRepository performanceArtistRepository;
 	private final PerformanceGenreRepository performanceGenreRepository;
+	private final PerformanceTypeRepository performanceTypeRepository;
+	private final PerformanceTypeMapRepository performanceTypeMapRepository;
 
 	public KopisPerformanceBatchWriter(
 		VenueRepository venueRepository,
@@ -44,7 +53,9 @@ public class KopisPerformanceBatchWriter {
 		ArtistRepository artistRepository,
 		GenreRepository genreRepository,
 		PerformanceArtistRepository performanceArtistRepository,
-		PerformanceGenreRepository performanceGenreRepository
+		PerformanceGenreRepository performanceGenreRepository,
+		PerformanceTypeRepository performanceTypeRepository,
+		PerformanceTypeMapRepository performanceTypeMapRepository
 	) {
 		this.venueRepository = venueRepository;
 		this.performanceRepository = performanceRepository;
@@ -52,6 +63,8 @@ public class KopisPerformanceBatchWriter {
 		this.genreRepository = genreRepository;
 		this.performanceArtistRepository = performanceArtistRepository;
 		this.performanceGenreRepository = performanceGenreRepository;
+		this.performanceTypeRepository = performanceTypeRepository;
+		this.performanceTypeMapRepository = performanceTypeMapRepository;
 	}
 
 	/** 네트워크 호출 없이 전달받은 KOPIS 데이터를 한 번의 짧은 트랜잭션으로 저장한다. */
@@ -93,7 +106,8 @@ public class KopisPerformanceBatchWriter {
 
 		Map<String, Artist> artists = upsertArtists(details);
 		Map<String, Genre> genres = upsertGenres(details);
-		replaceMappings(details, performances, artists, genres);
+		Map<String, PerformanceType> performanceTypes = upsertPerformanceTypes();
+		replaceMappings(details, performances, artists, genres, performanceTypes);
 
 		return new KopisBatchWriteResult(details.size() - updatedCount, updatedCount);
 	}
@@ -176,20 +190,41 @@ public class KopisPerformanceBatchWriter {
 		return genres;
 	}
 
+	private Map<String, PerformanceType> upsertPerformanceTypes() {
+		Map<String, String> names = Map.of(
+			SOLO_CONCERT, "단독공연",
+			JOINT_CONCERT, "합동공연",
+			FESTIVAL, "페스티벌"
+		);
+		Map<String, PerformanceType> types = performanceTypeRepository
+			.findByTypeCodeIn(new ArrayList<>(names.keySet())).stream()
+			.collect(Collectors.toMap(PerformanceType::getTypeCode, Function.identity()));
+		List<PerformanceType> created = names.entrySet().stream()
+			.filter(entry -> !types.containsKey(entry.getKey()))
+			.map(entry -> new PerformanceType(entry.getKey(), entry.getValue()))
+			.toList();
+		performanceTypeRepository.saveAllAndFlush(created)
+			.forEach(type -> types.put(type.getTypeCode(), type));
+		return types;
+	}
+
 	private void replaceMappings(
 		List<KopisPerformanceDetail> details,
 		List<Performance> performances,
 		Map<String, Artist> artists,
-		Map<String, Genre> genres
+		Map<String, Genre> genres,
+		Map<String, PerformanceType> performanceTypes
 	) {
 		Map<String, Performance> performanceByKopisId = performances.stream()
 			.collect(Collectors.toMap(Performance::getKopisPerformanceId, Function.identity()));
 		List<Long> performanceIds = performances.stream().map(Performance::getPerformanceId).toList();
 		performanceArtistRepository.deleteByPerformanceIdIn(performanceIds);
 		performanceGenreRepository.deleteByPerformanceIdIn(performanceIds);
+		performanceTypeMapRepository.deleteByPerformanceIdIn(performanceIds);
 
 		List<PerformanceArtist> artistMappings = new ArrayList<>();
 		List<PerformanceGenre> genreMappings = new ArrayList<>();
+		List<PerformanceTypeMap> typeMappings = new ArrayList<>();
 		for (KopisPerformanceDetail detail : details) {
 			Long performanceId = performanceByKopisId.get(detail.kopisPerformanceId()).getPerformanceId();
 			Set<Long> mappedArtistIds = new LinkedHashSet<>();
@@ -207,9 +242,18 @@ public class KopisPerformanceBatchWriter {
 					genreMappings.add(new PerformanceGenre(performanceId, genre.getGenreId(), "KOPIS"));
 				}
 			}
+			String typeCode = detail.festival()
+				? FESTIVAL
+				: detail.artistNames().size() == 1 ? SOLO_CONCERT : JOINT_CONCERT;
+			PerformanceType performanceType = performanceTypes.get(typeCode);
+			if (performanceType != null) {
+				typeMappings.add(new PerformanceTypeMap(
+					performanceId, performanceType.getPerformanceTypeId()));
+			}
 		}
 		performanceArtistRepository.saveAll(artistMappings);
 		performanceGenreRepository.saveAll(genreMappings);
+		performanceTypeMapRepository.saveAll(typeMappings);
 	}
 
 	private String facilityId(KopisPerformanceDetail detail) {

@@ -54,7 +54,8 @@ public class KopisXmlParser {
 			text(row, "genrenm"),
 			text(row, "mt10id"),
 			text(row, "fcltynm"),
-			artistNames(text(row, "prfcast"))
+			artistNames(text(row, "prfcast")),
+			"Y".equalsIgnoreCase(text(row, "festival"))
 		);
 	}
 

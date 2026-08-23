@@ -26,6 +26,11 @@ public class PerformanceType {
 	protected PerformanceType() {
 	}
 
+	public PerformanceType(String typeCode, String typeName) {
+		this.typeCode = typeCode;
+		this.typeName = typeName;
+	}
+
 	public Long getPerformanceTypeId() {
 		return performanceTypeId;
 	}

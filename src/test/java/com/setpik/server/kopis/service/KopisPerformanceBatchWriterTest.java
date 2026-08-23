@@ -17,6 +17,8 @@ import com.setpik.server.performance.domain.Venue;
 import com.setpik.server.performance.repository.PerformanceArtistRepository;
 import com.setpik.server.performance.repository.PerformanceGenreRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
+import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,6 +42,8 @@ class KopisPerformanceBatchWriterTest {
 	@Mock private GenreRepository genreRepository;
 	@Mock private PerformanceArtistRepository performanceArtistRepository;
 	@Mock private PerformanceGenreRepository performanceGenreRepository;
+	@Mock private PerformanceTypeRepository performanceTypeRepository;
+	@Mock private PerformanceTypeMapRepository performanceTypeMapRepository;
 
 	private KopisPerformanceBatchWriter writer;
 
@@ -51,7 +55,9 @@ class KopisPerformanceBatchWriterTest {
 			artistRepository,
 			genreRepository,
 			performanceArtistRepository,
-			performanceGenreRepository
+			performanceGenreRepository,
+			performanceTypeRepository,
+			performanceTypeMapRepository
 		);
 	}
 
@@ -84,6 +90,13 @@ class KopisPerformanceBatchWriterTest {
 			genres.forEach(genre -> ReflectionTestUtils.setField(genre, "genreId", 3L));
 			return genres;
 		});
+		when(performanceTypeRepository.findByTypeCodeIn(anyList())).thenReturn(List.of());
+		when(performanceTypeRepository.saveAllAndFlush(anyList())).thenAnswer(invocation -> {
+			List<com.setpik.server.performance.domain.PerformanceType> types = invocation.getArgument(0);
+			long id = 1L;
+			for (var type : types) ReflectionTestUtils.setField(type, "performanceTypeId", id++);
+			return types;
+		});
 
 		KopisBatchWriteResult result = writer.writeBatch(
 			List.of(detail), Map.of("FC001", venueDetail), LocalDateTime.now());
@@ -94,6 +107,7 @@ class KopisPerformanceBatchWriterTest {
 		verify(performanceGenreRepository).deleteByPerformanceIdIn(List.of(1001L));
 		verify(performanceArtistRepository).saveAll(anyList());
 		verify(performanceGenreRepository).saveAll(anyList());
+		verify(performanceTypeMapRepository).saveAll(anyList());
 	}
 
 	private KopisPerformanceDetail detail() {

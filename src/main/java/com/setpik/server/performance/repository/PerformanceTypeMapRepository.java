@@ -9,4 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PerformanceTypeMapRepository extends JpaRepository<PerformanceTypeMap, PerformanceTypeMapId> {
 
 	List<PerformanceTypeMap> findByPerformanceIdIn(List<Long> performanceIds);
+
+	void deleteByPerformanceIdIn(List<Long> performanceIds);
 }
