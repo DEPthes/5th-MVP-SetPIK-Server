@@ -124,7 +124,14 @@ public class SpotifyPlaylistClient {
 				.retrieve()
 				.body(ArtistDetail.class);
 			if (detail == null || detail.id() == null || detail.name() == null) {
+				log.warn("Spotify 아티스트 상세 응답이 비어 있습니다: requestedArtistId={}", artistId);
 				return null;
+			}
+			if (detail.popularity() == null || detail.genres() == null || detail.genres().isEmpty()) {
+				log.warn(
+					"Spotify 아티스트 상세 응답 필드 누락: artistId={}, popularity={}, genres={}",
+					detail.id(), detail.popularity(), detail.genres()
+				);
 			}
 			return new SpotifyArtistSnapshot(
 				detail.id(),
