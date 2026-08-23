@@ -131,7 +131,8 @@ public class SpotifyPlaylistClient {
 				detail.name(),
 				detail.externalUrls() == null ? null : detail.externalUrls().spotify(),
 				firstImageUrl(detail.images()),
-				toPopularity(detail.popularity())
+				toPopularity(detail.popularity()),
+				detail.genres()
 			);
 		} catch (RestClientResponseException exception) {
 			logSpotifyError(exception);
@@ -409,6 +410,7 @@ public class SpotifyPlaylistClient {
 		String name,
 		List<Image> images,
 		Integer popularity,
+		List<String> genres,
 		@JsonProperty("external_urls") ExternalUrls externalUrls
 	) {
 	}

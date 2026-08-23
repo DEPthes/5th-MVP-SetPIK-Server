@@ -5,7 +5,12 @@ import com.setpik.server.auth.client.SpotifyOAuthClient;
 import com.setpik.server.auth.client.dto.SpotifyTokenResponse;
 import com.setpik.server.auth.security.TokenCipher;
 import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.domain.ArtistGenre;
+import com.setpik.server.artist.domain.ArtistGenreId;
+import com.setpik.server.artist.domain.Genre;
+import com.setpik.server.artist.repository.ArtistGenreRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
+import com.setpik.server.artist.repository.GenreRepository;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.playlist.client.SpotifyPlaylistApiException;
@@ -66,6 +71,8 @@ public class PlaylistService {
 	private final PlaylistTrackRepository playlistTrackRepository;
 	private final TrackRepository trackRepository;
 	private final ArtistRepository artistRepository;
+	private final ArtistGenreRepository artistGenreRepository;
+	private final GenreRepository genreRepository;
 	private final TrackArtistRepository trackArtistRepository;
 	private final SpotifyAccountRepository spotifyAccountRepository;
 	private final PlaylistRecentSelectionRepository recentSelectionRepository;
@@ -78,6 +85,8 @@ public class PlaylistService {
 						   PlaylistTrackRepository playlistTrackRepository,
 						   TrackRepository trackRepository,
 						   ArtistRepository artistRepository,
+						   ArtistGenreRepository artistGenreRepository,
+						   GenreRepository genreRepository,
 						   TrackArtistRepository trackArtistRepository,
 						   SpotifyAccountRepository spotifyAccountRepository,
 						   PlaylistRecentSelectionRepository recentSelectionRepository,
@@ -89,6 +98,8 @@ public class PlaylistService {
 		this.playlistTrackRepository = playlistTrackRepository;
 		this.trackRepository = trackRepository;
 		this.artistRepository = artistRepository;
+		this.artistGenreRepository = artistGenreRepository;
+		this.genreRepository = genreRepository;
 		this.trackArtistRepository = trackArtistRepository;
 		this.spotifyAccountRepository = spotifyAccountRepository;
 		this.recentSelectionRepository = recentSelectionRepository;
@@ -204,7 +215,20 @@ public class PlaylistService {
 					source.artistName(), source.spotifyArtistUrl(),
 					source.imageUrl(), source.popularity());
 			}
+			syncArtistGenres(artist.getArtistId(), source.genres());
 			trackArtistRepository.save(new TrackArtist(trackId, artist.getArtistId(), artistOrder++));
+		}
+	}
+
+	private void syncArtistGenres(Long artistId, List<String> spotifyGenres) {
+		for (String genreName : SpotifyGenreMapper.toKopisGenres(spotifyGenres)) {
+			String normalizedName = Artist.normalize(genreName);
+			Genre genre = genreRepository.findByNormalizedName(normalizedName)
+				.orElseGet(() -> genreRepository.save(new Genre(genreName, normalizedName)));
+			ArtistGenreId id = new ArtistGenreId(artistId, genre.getGenreId());
+			if (!artistGenreRepository.existsById(id)) {
+				artistGenreRepository.save(new ArtistGenre(artistId, genre.getGenreId(), "SPOTIFY"));
+			}
 		}
 	}
 
