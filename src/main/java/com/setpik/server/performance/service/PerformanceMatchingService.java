@@ -37,6 +37,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,6 +56,8 @@ public class PerformanceMatchingService {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	private static final int SIMILAR_PERFORMANCE_LIMIT = 5;
+	private static final PerformanceGenreCompatibilityPolicy GENRE_COMPATIBILITY =
+		new PerformanceGenreCompatibilityPolicy();
 
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
 	private final AnalysisArtistRepository analysisArtistRepository;
@@ -168,6 +171,20 @@ public class PerformanceMatchingService {
 		List<Long> performanceIds = performances.stream().map(Performance::getPerformanceId).toList();
 		List<PerformanceArtist> lineup = performanceArtistRepository.findByPerformanceIdIn(performanceIds);
 		Map<Long, Artist> artists = loadArtists(selectedArtists, lineup);
+		List<PerformanceGenre> performanceGenres = performanceGenreRepository.findByPerformanceIdIn(performanceIds);
+		Map<Long, List<PerformanceGenre>> genresByPerformance = performanceGenres.stream()
+			.collect(Collectors.groupingBy(PerformanceGenre::getPerformanceId));
+		Set<Long> allArtistIds = artists.keySet();
+		List<ArtistGenre> artistGenres = artistGenreRepository.findByArtistIdIn(new ArrayList<>(allArtistIds));
+		Map<Long, Set<Long>> genreIdsByArtist = artistGenres.stream().collect(Collectors.groupingBy(
+			ArtistGenre::getArtistId,
+			Collectors.mapping(ArtistGenre::getGenreId, Collectors.toSet())
+		));
+		Set<Long> allGenreIds = new HashSet<>();
+		artistGenres.stream().map(ArtistGenre::getGenreId).forEach(allGenreIds::add);
+		performanceGenres.stream().map(PerformanceGenre::getGenreId).forEach(allGenreIds::add);
+		Map<Long, Genre> genres = genreRepository.findAllById(allGenreIds).stream()
+			.collect(Collectors.toMap(Genre::getGenreId, Function.identity()));
 		Map<String, AnalysisArtist> selectedByName = selectedArtistsByNormalizedName(selectedArtists, artists);
 		Map<String, AnalysisArtist> selectedBySpotifyId = selectedArtistsBySpotifyId(selectedArtists, artists);
 		Map<Long, String> spotifyAliasByKopisArtistId = verifiedSpotifyAliases(lineup);
@@ -179,12 +196,13 @@ public class PerformanceMatchingService {
 		List<MatchCandidate> directMatches = new ArrayList<>();
 		Set<Long> directlyMatchedPerformanceIds = new HashSet<>();
 		for (Performance performance : performances) {
+			Set<String> performanceGenreNames = genreNames(
+				genresByPerformance.getOrDefault(performance.getPerformanceId(), List.of()), genres);
 			List<MatchedArtist> matchedArtists = matchArtists(
 				lineupByPerformance.getOrDefault(performance.getPerformanceId(), List.of()),
 				selectedByName,
 				selectedBySpotifyId,
-				spotifyAliasByKopisArtistId,
-				artists
+				spotifyAliasByKopisArtistId, artists, genreIdsByArtist, genres, performanceGenreNames
 			);
 			if (matchedArtists.isEmpty()) {
 				continue;
@@ -211,7 +229,10 @@ public class PerformanceMatchingService {
 			performances,
 			directlyMatchedPerformanceIds,
 			selectedArtists,
-			lineupByPerformance
+			lineupByPerformance,
+			genresByPerformance,
+			genreIdsByArtist,
+			genres
 		);
 		directMatches.addAll(similarMatches);
 		return directMatches;
@@ -279,7 +300,10 @@ public class PerformanceMatchingService {
 		Map<String, AnalysisArtist> selectedByName,
 		Map<String, AnalysisArtist> selectedBySpotifyId,
 		Map<Long, String> spotifyAliasByKopisArtistId,
-		Map<Long, Artist> artists
+		Map<Long, Artist> artists,
+		Map<Long, Set<Long>> genreIdsByArtist,
+		Map<Long, Genre> genres,
+		Set<String> performanceGenreNames
 	) {
 		Map<String, MatchedArtist> matches = new LinkedHashMap<>();
 		for (PerformanceArtist performanceArtist : lineup) {
@@ -292,7 +316,9 @@ public class PerformanceMatchingService {
 			if (selected == null) {
 				selected = selectedBySpotifyId.get(spotifyAliasByKopisArtistId.get(performanceArtist.getArtistId()));
 			}
-			if (selected != null) {
+			if (selected != null && GENRE_COMPATIBILITY.allowsDirectMatch(
+				genreNames(genreIdsByArtist.getOrDefault(selected.getArtistId(), Set.of()), genres),
+				performanceGenreNames)) {
 				Artist selectedArtist = artists.get(selected.getArtistId());
 				matches.putIfAbsent(String.valueOf(selected.getArtistId()), new MatchedArtist(
 					selected.getArtistId(),
@@ -352,7 +378,10 @@ public class PerformanceMatchingService {
 		List<Performance> performances,
 		Set<Long> directlyMatchedPerformanceIds,
 		List<AnalysisArtist> selectedArtists,
-		Map<Long, List<PerformanceArtist>> lineupByPerformance
+		Map<Long, List<PerformanceArtist>> lineupByPerformance,
+		Map<Long, List<PerformanceGenre>> genresByPerformance,
+		Map<Long, Set<Long>> genresByLineupArtist,
+		Map<Long, Genre> genres
 	) {
 		List<Long> majorArtistIds = selectedArtists.stream()
 			.filter(artist -> Boolean.TRUE.equals(artist.getIsMajor()))
@@ -362,8 +391,8 @@ public class PerformanceMatchingService {
 			return List.of();
 		}
 
-		Set<Long> preferredGenreIds = artistGenreRepository.findByArtistIdIn(majorArtistIds).stream()
-			.map(ArtistGenre::getGenreId)
+		Set<Long> preferredGenreIds = majorArtistIds.stream()
+			.flatMap(id -> genresByLineupArtist.getOrDefault(id, Set.of()).stream())
 			.collect(Collectors.toSet());
 		if (preferredGenreIds.isEmpty()) {
 			return List.of();
@@ -376,24 +405,6 @@ public class PerformanceMatchingService {
 		if (unmatchedIds.isEmpty()) {
 			return List.of();
 		}
-		Map<Long, List<PerformanceGenre>> genresByPerformance = performanceGenreRepository
-			.findByPerformanceIdIn(unmatchedIds).stream()
-			.collect(Collectors.groupingBy(PerformanceGenre::getPerformanceId));
-		List<Long> lineupArtistIds = unmatchedIds.stream()
-			.flatMap(id -> lineupByPerformance.getOrDefault(id, List.of()).stream())
-			.map(PerformanceArtist::getArtistId)
-			.distinct()
-			.toList();
-		Map<Long, Set<Long>> genresByLineupArtist = lineupArtistIds.isEmpty()
-			? Map.of()
-			: artistGenreRepository.findByArtistIdIn(lineupArtistIds).stream()
-				.collect(Collectors.groupingBy(
-					ArtistGenre::getArtistId,
-					Collectors.mapping(ArtistGenre::getGenreId, Collectors.toSet())
-				));
-		Map<Long, Genre> genres = genreRepository.findAllById(preferredGenreIds).stream()
-			.collect(Collectors.toMap(Genre::getGenreId, Function.identity()));
-
 		return performances.stream()
 			.filter(performance -> !directlyMatchedPerformanceIds.contains(performance.getPerformanceId()))
 			.map(performance -> similarGenreCandidate(
@@ -418,15 +429,20 @@ public class PerformanceMatchingService {
 		Set<Long> preferredGenreIds,
 		Map<Long, Genre> genres
 	) {
-		Set<Long> candidateGenreIds = performanceGenres.stream()
-			.map(PerformanceGenre::getGenreId)
-			.collect(Collectors.toSet());
+		Set<String> performanceGenreNames = genreNames(performanceGenres, genres);
+		Set<String> candidateGenreNames = new HashSet<>(
+			GENRE_COMPATIBILITY.specificGenresFromKopis(performanceGenreNames));
 		lineup.stream()
 			.flatMap(artist -> genresByLineupArtist
 				.getOrDefault(artist.getArtistId(), Set.of()).stream())
-			.forEach(candidateGenreIds::add);
-		Long matchedGenreId = candidateGenreIds.stream()
-			.filter(preferredGenreIds::contains)
+			.map(genres::get)
+			.filter(java.util.Objects::nonNull)
+			.map(Genre::getGenreName)
+			.filter(genre -> GENRE_COMPATIBILITY.isCompatible(genre, performanceGenreNames))
+			.forEach(candidateGenreNames::add);
+		Long matchedGenreId = preferredGenreIds.stream()
+			.filter(id -> genres.containsKey(id))
+			.filter(id -> candidateGenreNames.contains(genres.get(id).getGenreName()))
 			.findFirst()
 			.orElse(null);
 		if (matchedGenreId == null) {
@@ -443,6 +459,16 @@ public class PerformanceMatchingService {
 			lineup.size(),
 			List.of()
 		);
+	}
+
+	private Set<String> genreNames(Collection<Long> genreIds, Map<Long, Genre> genres) {
+		return genreIds.stream().map(genres::get).filter(java.util.Objects::nonNull)
+			.map(Genre::getGenreName).collect(Collectors.toSet());
+	}
+
+	private Set<String> genreNames(List<PerformanceGenre> performanceGenres, Map<Long, Genre> genres) {
+		return performanceGenres.stream().map(PerformanceGenre::getGenreId).map(genres::get)
+			.filter(java.util.Objects::nonNull).map(Genre::getGenreName).collect(Collectors.toSet());
 	}
 
 	private void deletePreviousMatches(Long analysisId) {
