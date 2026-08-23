@@ -147,13 +147,19 @@ public class AnalysisService {
 			return List.of();
 		}
 
-		Map<Long, String> namesById = artistRepository
+		Map<Long, Artist> artistsById = artistRepository
 			.findAllById(analysisArtists.stream().map(AnalysisArtist::getArtistId).toList()).stream()
-			.collect(Collectors.toMap(Artist::getArtistId, Artist::getArtistName));
+			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
 
 		return analysisArtists.stream()
-			.map(artist -> TopArtistResponse.of(
-				artist, namesById.getOrDefault(artist.getArtistId(), "Unknown")))
+			.map(analysisArtist -> {
+				Artist artist = artistsById.get(analysisArtist.getArtistId());
+				return TopArtistResponse.of(
+					analysisArtist,
+					artist == null ? "Unknown" : artist.getArtistName(),
+					artist == null ? null : artist.getImageUrl()
+				);
+			})
 			.toList();
 	}
 
@@ -272,12 +278,18 @@ public class AnalysisService {
 			.map(AnalysisArtist::getArtistId)
 			.toList();
 
-		Map<Long, String> namesById = artistRepository.findAllById(artistIds).stream()
-			.collect(Collectors.toMap(Artist::getArtistId, Artist::getArtistName));
+		Map<Long, Artist> artistsById = artistRepository.findAllById(artistIds).stream()
+			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
 
 		return analysisArtists.stream()
-			.map(artist -> AnalysisArtistResponse.of(
-				artist, namesById.getOrDefault(artist.getArtistId(), "Unknown")))
+			.map(analysisArtist -> {
+				Artist artist = artistsById.get(analysisArtist.getArtistId());
+				return AnalysisArtistResponse.of(
+					analysisArtist,
+					artist == null ? "Unknown" : artist.getArtistName(),
+					artist == null ? null : artist.getImageUrl()
+				);
+			})
 			.toList();
 	}
 

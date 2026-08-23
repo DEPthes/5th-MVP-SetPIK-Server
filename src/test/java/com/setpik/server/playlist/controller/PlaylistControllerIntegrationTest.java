@@ -266,7 +266,7 @@ class PlaylistControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.analysisAvailable").value(true))
 			.andExpect(jsonPath("$.result.lastSyncedAt", endsWith("+09:00")))
 			.andExpect(jsonPath("$.result.deletedAt").value(nullValue()))
-			.andExpect(jsonPath("$.result.coverImageUrl").doesNotExist());
+			.andExpect(jsonPath("$.result.coverImageUrl").value("https://image/cover"));
 	}
 
 	@Test

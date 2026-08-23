@@ -6,14 +6,20 @@ import com.setpik.server.analysis.domain.AnalysisArtist;
 public record TopArtistResponse(
 	Long artistId,
 	String artistName,
+	String artistImageUrl,
 	Integer occurrenceCount,
 	Boolean isMajor,
 	Boolean isExcluded
 ) {
-	public static TopArtistResponse of(AnalysisArtist artist, String artistName) {
+	public static TopArtistResponse of(
+		AnalysisArtist artist,
+		String artistName,
+		String artistImageUrl
+	) {
 		return new TopArtistResponse(
 			artist.getArtistId(),
 			artistName,
+			artistImageUrl,
 			artist.getOccurrenceCount(),
 			artist.getIsMajor(),
 			artist.getIsExcluded()
