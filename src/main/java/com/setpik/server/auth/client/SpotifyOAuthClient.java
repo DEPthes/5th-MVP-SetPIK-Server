@@ -76,29 +76,6 @@ public class SpotifyOAuthClient {
 		}
 	}
 
-	/** 로그인 없이 앱의 자격만으로 발급받는 Access Token. 공개 정보 조회에 사용한다. */
-	public String getClientCredentialsToken() {
-		MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-		formData.add("grant_type", "client_credentials");
-
-		try {
-			SpotifyTokenResponse response = restClient.post()
-				.uri(TOKEN_URI)
-				.headers(headers -> headers.setBasicAuth(properties.clientId(), properties.clientSecret()))
-				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
-				.body(formData)
-				.retrieve()
-				.body(SpotifyTokenResponse.class);
-			validateTokenResponse(response);
-			return response.accessToken();
-		} catch (RestClientResponseException exception) {
-			logSpotifyError("클라이언트 자격 증명 토큰 발급", exception);
-			throw new SpotifyApiException("Spotify 클라이언트 자격 증명 토큰 발급에 실패했습니다.", exception);
-		} catch (RestClientException exception) {
-			throw new SpotifyApiException("Spotify 클라이언트 자격 증명 토큰 발급에 실패했습니다.", exception);
-		}
-	}
-
 	/** 발급받은 Access Token으로 Spotify 회원 프로필을 조회한다. */
 	public SpotifyProfileResponse getCurrentUser(String accessToken) {
 		try {
