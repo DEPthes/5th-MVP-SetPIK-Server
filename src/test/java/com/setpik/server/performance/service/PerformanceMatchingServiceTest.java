@@ -118,6 +118,7 @@ class PerformanceMatchingServiceTest {
 		when(kopisArtist.getArtistName()).thenReturn("Artist-A");
 		when(artistRepository.findAllById(any())).thenReturn(List.of(spotifyArtist, kopisArtist));
 		when(artistAliasRepository.findByKopisArtistIdIn(List.of(9L))).thenReturn(List.of());
+		stubPerformanceGenre(10L, 6L, "대중음악");
 
 		PerformanceTypeMap typeMap = mock(PerformanceTypeMap.class);
 		when(typeMap.getPerformanceId()).thenReturn(10L);
@@ -207,6 +208,7 @@ class PerformanceMatchingServiceTest {
 		when(artistAliasRepository.findByKopisArtistIdIn(List.of(9L))).thenReturn(List.of(
 			ArtistAlias.resolved(9L, "spotify-akmu", "WIKIDATA", "Q123", LocalDateTime.now())
 		));
+		stubPerformanceGenre(10L, 6L, "대중음악");
 		when(performanceTypeMapRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
 		when(performanceMatchRepository.findAllByAnalysisId(501L)).thenReturn(List.of());
 		PerformanceMatch persistedMatch = mock(PerformanceMatch.class);
@@ -270,13 +272,18 @@ class PerformanceMatchingServiceTest {
 		ArtistGenre lineupGenre = mock(ArtistGenre.class);
 		when(lineupGenre.getArtistId()).thenReturn(9L);
 		when(lineupGenre.getGenreId()).thenReturn(5L);
-		when(artistGenreRepository.findByArtistIdIn(List.of(7L))).thenReturn(List.of(preferredGenre));
-		when(artistGenreRepository.findByArtistIdIn(List.of(9L))).thenReturn(List.of(lineupGenre));
-		when(performanceGenreRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
+		when(artistGenreRepository.findByArtistIdIn(any())).thenReturn(List.of(preferredGenre, lineupGenre));
+		PerformanceGenre performanceGenre = mock(PerformanceGenre.class);
+		when(performanceGenre.getPerformanceId()).thenReturn(10L);
+		when(performanceGenre.getGenreId()).thenReturn(6L);
+		when(performanceGenreRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of(performanceGenre));
 		Genre genre = mock(Genre.class);
 		when(genre.getGenreId()).thenReturn(5L);
-		when(genre.getGenreName()).thenReturn("인디");
-		when(genreRepository.findAllById(java.util.Set.of(5L))).thenReturn(List.of(genre));
+		when(genre.getGenreName()).thenReturn("INDIE");
+		Genre performanceGenreEntity = mock(Genre.class);
+		when(performanceGenreEntity.getGenreId()).thenReturn(6L);
+		when(performanceGenreEntity.getGenreName()).thenReturn("대중음악");
+		when(genreRepository.findAllById(any())).thenReturn(List.of(genre, performanceGenreEntity));
 		when(performanceMatchRepository.findAllByAnalysisId(501L)).thenReturn(List.of());
 
 		PerformanceMatch persistedMatch = mock(PerformanceMatch.class);
@@ -295,7 +302,7 @@ class PerformanceMatchingServiceTest {
 		assertThat(savedMatch.getLineupArtistCount()).isEqualTo(1);
 		assertThat(savedMatch.getMatchRatio()).isNull();
 		assertThat(savedMatch.getGenreId()).isEqualTo(5L);
-		assertThat(savedMatch.getRecommendationReason()).contains("인디");
+		assertThat(savedMatch.getRecommendationReason()).contains("INDIE");
 	}
 
 	@Test
@@ -320,5 +327,58 @@ class PerformanceMatchingServiceTest {
 		assertThatThrownBy(() -> service.calculate(1L, 501L, new PerformanceMatchRequest(null, null)))
 			.isInstanceOfSatisfying(BusinessException.class,
 				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void rejectsVerifiedMusicAliasForTheaterPerformance() {
+		PlaylistAnalysis analysis = mock(PlaylistAnalysis.class);
+		when(analysis.getAnalysisId()).thenReturn(501L);
+		when(analysis.getAnalysisStatus()).thenReturn(AnalysisStatus.COMPLETED);
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+		AnalysisArtist selected = mock(AnalysisArtist.class);
+		when(selected.getArtistId()).thenReturn(7L);
+		when(selected.getOccurrenceCount()).thenReturn(1);
+		when(analysisArtistRepository.findByAnalysisIdAndIsExcludedFalse(501L)).thenReturn(List.of(selected));
+
+		Performance performance = mock(Performance.class);
+		when(performance.getPerformanceId()).thenReturn(10L);
+		when(performance.getStartDate()).thenReturn(LocalDate.of(2026, 9, 1));
+		when(performanceRepository.findMatchCandidates(any(), any())).thenReturn(List.of(performance));
+		PerformanceArtist lineup = mock(PerformanceArtist.class);
+		when(lineup.getPerformanceId()).thenReturn(10L);
+		when(lineup.getArtistId()).thenReturn(9L);
+		when(performanceArtistRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of(lineup));
+
+		Artist spotifyYena = mock(Artist.class);
+		when(spotifyYena.getArtistId()).thenReturn(7L);
+		when(spotifyYena.getArtistName()).thenReturn("YENA");
+		when(spotifyYena.getSpotifyArtistId()).thenReturn("spotify-yena");
+		Artist theaterYena = mock(Artist.class);
+		when(theaterYena.getArtistId()).thenReturn(9L);
+		when(theaterYena.getArtistName()).thenReturn("최예나");
+		when(artistRepository.findAllById(any())).thenReturn(List.of(spotifyYena, theaterYena));
+		when(artistAliasRepository.findByKopisArtistIdIn(List.of(9L))).thenReturn(List.of(
+			ArtistAlias.resolved(9L, "spotify-yena", "WIKIDATA", "Q55694544", LocalDateTime.now())
+		));
+		stubPerformanceGenre(10L, 6L, "연극");
+		when(performanceTypeMapRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
+		when(performanceMatchRepository.findAllByAnalysisId(501L)).thenReturn(List.of());
+
+		PerformanceMatchResponse response = service.calculate(1L, 501L, new PerformanceMatchRequest(null, null));
+
+		assertThat(response.matchedPerformanceCount()).isZero();
+	}
+
+	private void stubPerformanceGenre(Long performanceId, Long genreId, String genreName) {
+		PerformanceGenre performanceGenre = mock(PerformanceGenre.class);
+		when(performanceGenre.getPerformanceId()).thenReturn(performanceId);
+		when(performanceGenre.getGenreId()).thenReturn(genreId);
+		when(performanceGenreRepository.findByPerformanceIdIn(List.of(performanceId)))
+			.thenReturn(List.of(performanceGenre));
+		Genre genre = mock(Genre.class);
+		when(genre.getGenreId()).thenReturn(genreId);
+		when(genre.getGenreName()).thenReturn(genreName);
+		when(genreRepository.findAllById(any())).thenReturn(List.of(genre));
 	}
 }
