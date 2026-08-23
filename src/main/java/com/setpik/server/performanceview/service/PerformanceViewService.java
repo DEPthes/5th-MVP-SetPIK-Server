@@ -81,6 +81,14 @@ public class PerformanceViewService {
 			performanceView.getViewId(), created, performanceView.getViewedAt());
 	}
 
+	@Transactional
+	public void delete(Long userId, Long viewId) {
+		PerformanceView performanceView = performanceViewRepository
+			.findByViewIdAndUserId(viewId, userId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+		performanceViewRepository.delete(performanceView);
+	}
+
 	private void trimRecentViews(Long userId) {
 		performanceViewRepository.flush();
 		List<PerformanceView> views =

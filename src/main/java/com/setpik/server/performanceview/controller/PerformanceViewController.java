@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import jakarta.validation.Valid;
 
 @RestController
@@ -57,6 +59,15 @@ public class PerformanceViewController {
 			"조회 기록이 저장 또는 갱신되었습니다.",
 			performanceViewService.saveOrUpdate(userId(jwt), request)
 		);
+	}
+
+	@DeleteMapping("/{viewId}")
+	public ApiResponse<Void> delete(
+		@PathVariable Long viewId,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		performanceViewService.delete(userId(jwt), viewId);
+		return ApiResponse.success(null);
 	}
 
 	private Pageable toPageable(int page, int size, String sort) {

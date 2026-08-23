@@ -18,6 +18,8 @@ public interface PerformanceViewRepository extends JpaRepository<PerformanceView
 		Long performanceId
 	);
 
+	Optional<PerformanceView> findByViewIdAndUserId(Long viewId, Long userId);
+
 	List<PerformanceView> findByUserIdOrderByViewedAtDescViewIdDesc(Long userId);
 
 	@Query(
