@@ -13,9 +13,11 @@ import com.setpik.server.analysis.domain.PlaylistAnalysis;
 import com.setpik.server.analysis.repository.AnalysisArtistRepository;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.domain.ArtistAlias;
 import com.setpik.server.artist.domain.ArtistGenre;
 import com.setpik.server.artist.domain.Genre;
 import com.setpik.server.artist.repository.ArtistGenreRepository;
+import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.GenreRepository;
 import com.setpik.server.common.exception.BusinessException;
@@ -37,6 +39,7 @@ import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
 import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +51,7 @@ class PerformanceMatchingServiceTest {
 	private final PlaylistAnalysisRepository playlistAnalysisRepository = mock(PlaylistAnalysisRepository.class);
 	private final AnalysisArtistRepository analysisArtistRepository = mock(AnalysisArtistRepository.class);
 	private final ArtistRepository artistRepository = mock(ArtistRepository.class);
+	private final ArtistAliasRepository artistAliasRepository = mock(ArtistAliasRepository.class);
 	private final ArtistGenreRepository artistGenreRepository = mock(ArtistGenreRepository.class);
 	private final GenreRepository genreRepository = mock(GenreRepository.class);
 	private final PerformanceRepository performanceRepository = mock(PerformanceRepository.class);
@@ -67,6 +71,7 @@ class PerformanceMatchingServiceTest {
 			playlistAnalysisRepository,
 			analysisArtistRepository,
 			artistRepository,
+			artistAliasRepository,
 			artistGenreRepository,
 			genreRepository,
 			performanceRepository,
@@ -112,6 +117,7 @@ class PerformanceMatchingServiceTest {
 		when(kopisArtist.getArtistId()).thenReturn(9L);
 		when(kopisArtist.getArtistName()).thenReturn("Artist-A");
 		when(artistRepository.findAllById(any())).thenReturn(List.of(spotifyArtist, kopisArtist));
+		when(artistAliasRepository.findByKopisArtistIdIn(List.of(9L))).thenReturn(List.of());
 
 		PerformanceTypeMap typeMap = mock(PerformanceTypeMap.class);
 		when(typeMap.getPerformanceId()).thenReturn(10L);
@@ -149,7 +155,7 @@ class PerformanceMatchingServiceTest {
 		verify(performanceMatchArtistRepository).saveAll(artistCaptor.capture());
 		assertThat(artistCaptor.getValue()).singleElement().satisfies(matchArtist -> {
 			assertThat(matchArtist.getMatchId()).isEqualTo(700L);
-			assertThat(matchArtist.getArtistId()).isEqualTo(9L);
+			assertThat(matchArtist.getArtistId()).isEqualTo(7L);
 			assertThat(matchArtist.getOccurrenceCount()).isEqualTo(3);
 		});
 	}
@@ -164,6 +170,61 @@ class PerformanceMatchingServiceTest {
 		assertThatThrownBy(() -> service.calculate(1L, 501L, request))
 			.isInstanceOfSatisfying(BusinessException.class,
 				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void createsDirectMatchUsingVerifiedKopisAlias() {
+		PlaylistAnalysis analysis = mock(PlaylistAnalysis.class);
+		when(analysis.getAnalysisId()).thenReturn(501L);
+		when(analysis.getAnalysisStatus()).thenReturn(AnalysisStatus.COMPLETED);
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+
+		AnalysisArtist selected = mock(AnalysisArtist.class);
+		when(selected.getArtistId()).thenReturn(7L);
+		when(selected.getOccurrenceCount()).thenReturn(2);
+		when(selected.getIsMajor()).thenReturn(true);
+		when(analysisArtistRepository.findByAnalysisIdAndIsExcludedFalse(501L)).thenReturn(List.of(selected));
+
+		Performance performance = mock(Performance.class);
+		when(performance.getPerformanceId()).thenReturn(10L);
+		when(performance.getStartDate()).thenReturn(LocalDate.of(2026, 10, 1));
+		when(performanceRepository.findMatchCandidates(any(), any())).thenReturn(List.of(performance));
+
+		PerformanceArtist lineupArtist = mock(PerformanceArtist.class);
+		when(lineupArtist.getPerformanceId()).thenReturn(10L);
+		when(lineupArtist.getArtistId()).thenReturn(9L);
+		when(performanceArtistRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of(lineupArtist));
+
+		Artist spotifyArtist = mock(Artist.class);
+		when(spotifyArtist.getArtistId()).thenReturn(7L);
+		when(spotifyArtist.getArtistName()).thenReturn("AKMU");
+		when(spotifyArtist.getSpotifyArtistId()).thenReturn("spotify-akmu");
+		Artist kopisArtist = mock(Artist.class);
+		when(kopisArtist.getArtistId()).thenReturn(9L);
+		when(kopisArtist.getArtistName()).thenReturn("악동뮤지션");
+		when(artistRepository.findAllById(any())).thenReturn(List.of(spotifyArtist, kopisArtist));
+		when(artistAliasRepository.findByKopisArtistIdIn(List.of(9L))).thenReturn(List.of(
+			ArtistAlias.resolved(9L, "spotify-akmu", "WIKIDATA", "Q123", LocalDateTime.now())
+		));
+		when(performanceTypeMapRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
+		when(performanceMatchRepository.findAllByAnalysisId(501L)).thenReturn(List.of());
+		PerformanceMatch persistedMatch = mock(PerformanceMatch.class);
+		when(persistedMatch.getMatchId()).thenReturn(702L);
+		when(performanceMatchRepository.saveAndFlush(any(PerformanceMatch.class))).thenReturn(persistedMatch);
+
+		PerformanceMatchResponse response = service.calculate(
+			1L, 501L, new PerformanceMatchRequest(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)));
+
+		assertThat(response.matchedPerformanceCount()).isEqualTo(1);
+		ArgumentCaptor<PerformanceMatch> matchCaptor = ArgumentCaptor.forClass(PerformanceMatch.class);
+		verify(performanceMatchRepository).saveAndFlush(matchCaptor.capture());
+		assertThat(matchCaptor.getValue().getMatchPriority()).isEqualTo((byte) 2);
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<PerformanceMatchArtist>> artistCaptor = ArgumentCaptor.forClass(List.class);
+		verify(performanceMatchArtistRepository).saveAll(artistCaptor.capture());
+		assertThat(artistCaptor.getValue()).singleElement()
+			.satisfies(matchArtist -> assertThat(matchArtist.getArtistId()).isEqualTo(7L));
 	}
 
 	@Test
@@ -200,6 +261,7 @@ class PerformanceMatchingServiceTest {
 		when(differentLineupArtist.getArtistName()).thenReturn("Artist B");
 		when(artistRepository.findAllById(any()))
 			.thenReturn(List.of(selectedArtist, differentLineupArtist));
+		when(artistAliasRepository.findByKopisArtistIdIn(List.of(9L))).thenReturn(List.of());
 		when(performanceTypeMapRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
 
 		ArtistGenre preferredGenre = mock(ArtistGenre.class);

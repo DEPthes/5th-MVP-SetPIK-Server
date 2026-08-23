@@ -93,3 +93,10 @@ kopis:
     enabled: ${KOPIS_SYNC_ENABLED:false}
     cron: ${KOPIS_SYNC_CRON:0 0 3 * * *}
     future-days: ${KOPIS_SYNC_FUTURE_DAYS:1}
+
+artist-alias:
+  sync:
+    # 외부 메타데이터 호출을 사용하므로 운영 환경에서 명시적으로 활성화한다.
+    enabled: ${ARTIST_ALIAS_SYNC_ENABLED:false}
+    cron: ${ARTIST_ALIAS_SYNC_CRON:0 */5 * * * *}
+    batch-size: ${ARTIST_ALIAS_SYNC_BATCH_SIZE:20}
