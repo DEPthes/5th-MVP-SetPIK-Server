@@ -29,6 +29,21 @@ public interface PerformanceMatchRepository extends JpaRepository<PerformanceMat
 		Pageable pageable
 	);
 
+	@Query("""
+		select match
+		from PerformanceMatch match
+		join Performance performance on performance.performanceId = match.performanceId
+		where match.analysisId = :analysisId
+		  and performance.isDeleted = false
+		order by match.matchPriority asc,
+		  case when match.matchPriority = 2 then match.matchedArtistCount else 0 end desc,
+		  performance.startDate asc
+		""")
+	Page<PerformanceMatch> findVisibleByAnalysisIdInRecommendationOrder(
+		@Param("analysisId") Long analysisId,
+		Pageable pageable
+	);
+
 	Optional<PerformanceMatch> findByAnalysisIdAndPerformanceId(Long analysisId, Long performanceId);
 
 	List<PerformanceMatch> findAllByAnalysisId(Long analysisId);

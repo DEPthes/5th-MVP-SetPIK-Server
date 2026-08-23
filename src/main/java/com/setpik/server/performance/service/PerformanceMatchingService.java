@@ -185,6 +185,16 @@ public class PerformanceMatchingService {
 				lineupByPerformance.getOrDefault(performance.getPerformanceId(), List.of()).size(), solo));
 			directlyMatchedPerformanceIds.add(performance.getPerformanceId());
 		}
+		directMatches.sort((left, right) -> {
+			int priorityComparison = Integer.compare(left.priority(), right.priority());
+			if (priorityComparison != 0) return priorityComparison;
+			if (left.priority() == 2) {
+				int artistCountComparison = Integer.compare(
+					right.matchedArtists().size(), left.matchedArtists().size());
+				if (artistCountComparison != 0) return artistCountComparison;
+			}
+			return left.performance().getStartDate().compareTo(right.performance().getStartDate());
+		});
 
 		// 직접 일치하지 않은 공연만 주요 아티스트의 장르를 기준으로 3순위에 포함한다.
 		List<MatchCandidate> similarMatches = similarGenreCandidates(

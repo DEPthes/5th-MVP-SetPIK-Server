@@ -23,6 +23,11 @@ public class PerformanceTypeMap {
 	protected PerformanceTypeMap() {
 	}
 
+	public PerformanceTypeMap(Long performanceId, Long performanceTypeId) {
+		this.performanceId = performanceId;
+		this.performanceTypeId = performanceTypeId;
+	}
+
 	public Long getPerformanceId() {
 		return performanceId;
 	}

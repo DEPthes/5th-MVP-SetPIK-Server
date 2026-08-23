@@ -42,6 +42,7 @@ class KopisXmlParserTest {
 			  <mt10id>FC001</mt10id>
 			  <fcltynm>송도달빛축제공원</fcltynm>
 			  <prfcast>Artist A, Artist B</prfcast>
+			  <festival>Y</festival>
 			  <relates><relate><relateurl>https://tickets.example.com/1</relateurl></relate></relates>
 			</db></dbs>
 			""";
@@ -56,6 +57,7 @@ class KopisXmlParserTest {
 		assertThat(detail.priceText()).isEqualTo("전석 100,000원");
 		assertThat(detail.runningTime()).isEqualTo("180분");
 		assertThat(detail.ageRestriction()).isEqualTo("만 12세 이상");
+		assertThat(detail.festival()).isTrue();
 	}
 
 	@Test
