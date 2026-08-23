@@ -69,9 +69,11 @@ class AnalysisControllerIntegrationTest {
 		Track secondTrack = trackRepository.saveAndFlush(new Track(
 			"spotify-analysis-track-2", "Track 2", null, null, null, null, 180000, true));
 		Artist repeatedArtist = artistRepository.saveAndFlush(
-			new Artist("spotify-analysis-artist-1", "Repeated Artist", null));
+			new Artist("spotify-analysis-artist-1", "Repeated Artist", null,
+				"https://image/repeated-artist", (short) 80));
 		Artist singleArtist = artistRepository.saveAndFlush(
-			new Artist("spotify-analysis-artist-2", "Single Artist", null));
+			new Artist("spotify-analysis-artist-2", "Single Artist", null,
+				"https://image/single-artist", (short) 70));
 
 		playlistTrackRepository.saveAllAndFlush(List.of(
 			new PlaylistTrack(playlist.getPlaylistId(), firstTrack.getTrackId(), 1, now),
@@ -121,6 +123,8 @@ class AnalysisControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.selectedArtistCount").value(2))
 			.andExpect(jsonPath("$.result.topArtists[0].artistId").value(repeatedArtist.getArtistId()))
 			.andExpect(jsonPath("$.result.topArtists[0].artistName").value("Repeated Artist"))
+			.andExpect(jsonPath("$.result.topArtists[0].artistImageUrl")
+				.value("https://image/repeated-artist"))
 			.andExpect(jsonPath("$.result.topArtists[0].occurrenceCount").value(3))
 			.andExpect(jsonPath("$.result.topArtists[0].isMajor").value(true))
 			.andExpect(jsonPath("$.result.topArtists[0].isExcluded").value(false))
@@ -169,6 +173,8 @@ class AnalysisControllerIntegrationTest {
 			.andExpect(jsonPath("$.message").value("요청에 성공했습니다."))
 			.andExpect(jsonPath("$.result.content[0].artistId").value(singleArtist.getArtistId()))
 			.andExpect(jsonPath("$.result.content[0].artistName").value("Single Artist"))
+			.andExpect(jsonPath("$.result.content[0].artistImageUrl")
+				.value("https://image/single-artist"))
 			.andExpect(jsonPath("$.result.content[0].occurrenceCount").value(2))
 			.andExpect(jsonPath("$.result.content[0]", hasKey("popularitySnapshot")))
 			.andExpect(jsonPath("$.result.content[0].isMajor").value(true))
