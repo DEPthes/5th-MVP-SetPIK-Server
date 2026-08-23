@@ -3,6 +3,8 @@ package com.setpik.server.kopis.controller;
 import com.setpik.server.common.api.ApiResponse;
 import com.setpik.server.common.config.SwaggerConfig;
 import com.setpik.server.kopis.dto.KopisSyncResponse;
+import com.setpik.server.kopis.dto.KopisArtistBackfillResponse;
+import com.setpik.server.kopis.service.KopisArtistBackfillService;
 import com.setpik.server.kopis.service.KopisPerformanceSyncService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,9 +22,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class KopisSyncController {
 
 	private final KopisPerformanceSyncService syncService;
+	private final KopisArtistBackfillService artistBackfillService;
 
-	public KopisSyncController(KopisPerformanceSyncService syncService) {
+	public KopisSyncController(
+		KopisPerformanceSyncService syncService,
+		KopisArtistBackfillService artistBackfillService
+	) {
 		this.syncService = syncService;
+		this.artistBackfillService = artistBackfillService;
 	}
 
 	@PostMapping("/performances/sync")
@@ -32,5 +39,14 @@ public class KopisSyncController {
 	) {
 		return ApiResponse.success("KOPIS 공연 동기화가 완료되었습니다.",
 			syncService.sync(fromDate, toDate));
+	}
+
+	@PostMapping("/artists/spotify-mapping/backfill")
+	public ApiResponse<KopisArtistBackfillResponse> backfillArtistSpotifyMappings(
+		@RequestParam(required = false) Long afterArtistId,
+		@RequestParam(defaultValue = "10") int limit
+	) {
+		return ApiResponse.success("KOPIS 출연진 Spotify 아티스트 재연결이 완료되었습니다.",
+			artistBackfillService.backfill(afterArtistId, limit));
 	}
 }

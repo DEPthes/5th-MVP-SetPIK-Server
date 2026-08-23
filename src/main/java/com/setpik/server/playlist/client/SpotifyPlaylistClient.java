@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.setpik.server.playlist.client.dto.SpotifyPlaylistSnapshot;
 import com.setpik.server.playlist.client.dto.SpotifyArtistSnapshot;
+import com.setpik.server.playlist.client.dto.SpotifyArtistSearchResult;
 import com.setpik.server.playlist.client.dto.SpotifyTrackSnapshot;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -244,6 +245,14 @@ public class SpotifyPlaylistClient {
 
 	/** KOPIS 출연진 이름으로 Spotify에서 아티스트를 검색해 대표 결과를 반환한다. 실패 시 null을 반환한다. */
 	public SpotifyArtistSnapshot searchArtistByName(String accessToken, String artistName) {
+		return searchArtistByNameResult(accessToken, artistName).artist();
+	}
+
+	/**
+	 * KOPIS 백필에서 검색 결과 없음과 Spotify API 오류를 구분하기 위한 검색 결과다.
+	 * 정상 응답이나 검색 결과가 없을 때는 requestSucceeded가 true이고 artist만 null이다.
+	 */
+	public SpotifyArtistSearchResult searchArtistByNameResult(String accessToken, String artistName) {
 		for (int attempt = 1; attempt <= SEARCH_MAX_ATTEMPTS; attempt++) {
 			sleep(SEARCH_MIN_INTERVAL_MS);
 			try {
@@ -260,9 +269,9 @@ public class SpotifyPlaylistClient {
 					.retrieve()
 					.body(ArtistSearchResponse.class);
 				if (response == null || response.artists() == null) {
-					return null;
+					return SpotifyArtistSearchResult.success(null);
 				}
-				return response.artists().safeItems().stream()
+				SpotifyArtistSnapshot artist = response.artists().safeItems().stream()
 					.findFirst()
 					.map(item -> new SpotifyArtistSnapshot(
 						item.id(),
@@ -273,19 +282,20 @@ public class SpotifyPlaylistClient {
 						item.genres()
 					))
 					.orElse(null);
+				return SpotifyArtistSearchResult.success(artist);
 			} catch (RestClientResponseException exception) {
 				if (exception.getStatusCode().value() == 429 && attempt < SEARCH_MAX_ATTEMPTS) {
 					sleep(retryAfterMillis(exception));
 					continue;
 				}
 				logSpotifyError(exception);
-				return null;
+				return SpotifyArtistSearchResult.failure();
 			} catch (RestClientException exception) {
 				log.warn("Spotify 아티스트 검색 실패: artistName={}", artistName);
-				return null;
+				return SpotifyArtistSearchResult.failure();
 			}
 		}
-		return null;
+		return SpotifyArtistSearchResult.failure();
 	}
 
 	/** 429 응답의 Retry-After를 존중해 재시도 대기 시간을 정한다. 헤더가 없으면 최소 대기만 적용한다. */
