@@ -97,6 +97,13 @@ public class Artist extends BaseEntity {
 		this.spotifyAvailable = true;
 	}
 
+	/** KOPIS 출연진 매칭으로 확인된 기존 Spotify 아티스트에 KOPIS ID를 연결한다. */
+	public void linkKopisArtistId(String kopisArtistId) {
+		if (this.kopisArtistId == null) {
+			this.kopisArtistId = kopisArtistId;
+		}
+	}
+
 	public static String normalize(String artistName) {
 		return artistName.trim().toLowerCase(Locale.ROOT);
 	}

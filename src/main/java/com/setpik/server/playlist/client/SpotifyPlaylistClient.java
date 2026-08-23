@@ -237,6 +237,43 @@ public class SpotifyPlaylistClient {
 			return null;
 		}
 	}
+	/** KOPIS 출연진 이름으로 Spotify에서 아티스트를 검색해 대표 결과를 반환한다. 실패 시 null을 반환한다. */
+	public SpotifyArtistSnapshot searchArtistByName(String accessToken, String artistName) {
+		try {
+			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
+				.queryParam("q", artistName)
+				.queryParam("type", "artist")
+				.queryParam("limit", 1)
+				.build()
+				.encode()
+				.toUri();
+			ArtistSearchResponse response = restClient.get()
+				.uri(uri)
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.retrieve()
+				.body(ArtistSearchResponse.class);
+			if (response == null || response.artists() == null) {
+				return null;
+			}
+			return response.artists().safeItems().stream()
+				.findFirst()
+				.map(item -> new SpotifyArtistSnapshot(
+					item.id(),
+					item.name(),
+					item.externalUrls() == null ? null : item.externalUrls().spotify(),
+					firstImageUrl(item.images()),
+					toPopularity(item.popularity()),
+					item.genres()
+				))
+				.orElse(null);
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			return null;
+		} catch (RestClientException exception) {
+			log.warn("Spotify 아티스트 검색 실패: artistName={}", artistName);
+			return null;
+		}
+	}
 
 	private PlaylistPage getPlaylistPage(String accessToken, int offset) {
 		PlaylistPage page = restClient.get()
@@ -455,6 +492,16 @@ public class SpotifyPlaylistClient {
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	private record TrackSearchPage(List<TrackItem> items) {
 		private List<TrackItem> safeItems() {
+			return items == null ? List.of() : items;
+		}
+	}
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record ArtistSearchResponse(ArtistSearchPage artists) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record ArtistSearchPage(List<ArtistDetail> items) {
+		private List<ArtistDetail> safeItems() {
 			return items == null ? List.of() : items;
 		}
 	}
