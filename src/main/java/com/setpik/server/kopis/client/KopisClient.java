@@ -22,6 +22,7 @@ public class KopisClient {
 
 	private static final Logger log = LoggerFactory.getLogger(KopisClient.class);
 	private static final DateTimeFormatter QUERY_DATE = DateTimeFormatter.BASIC_ISO_DATE;
+	private static final int MAX_ERROR_RESPONSE_LENGTH = 500;
 	private final KopisApiProperties properties;
 	private final KopisXmlParser parser;
 	private final RestClient restClient;
@@ -64,10 +65,11 @@ public class KopisClient {
 				return request(path, fromDate, toDate, page, rows);
 			} catch (RestClientException exception) {
 				if (!isRetryable(exception) || attempt == maxAttempts) {
+					logFinalFailure(path, attempt, exception);
 					throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
 				}
-				log.warn("KOPIS API 호출 재시도: path={}, attempt={}/{}",
-					path, attempt, maxAttempts);
+				log.warn("KOPIS API 호출 재시도: path={}, status={}, attempt={}/{}",
+					path, getStatus(exception), attempt, maxAttempts);
 				waitBeforeRetry(attempt);
 			}
 		}
@@ -95,9 +97,30 @@ public class KopisClient {
 		}
 		if (exception instanceof RestClientResponseException responseException) {
 			int status = responseException.getStatusCode().value();
-			return status == 429 || status >= 500;
+			// KOPIS가 동일한 정상 GET 요청에 간헐적으로 400을 반환한 뒤 재호출 시 복구된다.
+			return status == 400 || status == 408 || status == 429 || status >= 500;
 		}
 		return false;
+	}
+
+	private String getStatus(RestClientException exception) {
+		if (exception instanceof RestClientResponseException responseException) {
+			return String.valueOf(responseException.getStatusCode().value());
+		}
+		return exception.getClass().getSimpleName();
+	}
+
+	private void logFinalFailure(String path, int attempts, RestClientException exception) {
+		if (exception instanceof RestClientResponseException responseException) {
+			String responseBody = responseException.getResponseBodyAsString();
+			if (responseBody.length() > MAX_ERROR_RESPONSE_LENGTH) {
+				responseBody = responseBody.substring(0, MAX_ERROR_RESPONSE_LENGTH);
+			}
+			log.error("KOPIS API 호출 최종 실패: path={}, status={}, attempts={}, response={}",
+				path, responseException.getStatusCode().value(), attempts, responseBody);
+			return;
+		}
+		log.error("KOPIS API 호출 최종 실패: path={}, attempts={}", path, attempts, exception);
 	}
 
 	private void waitBeforeRetry(int attempt) {
