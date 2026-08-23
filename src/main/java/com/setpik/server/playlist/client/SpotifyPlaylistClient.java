@@ -237,41 +237,77 @@ public class SpotifyPlaylistClient {
 			return null;
 		}
 	}
+
+	private static final int SEARCH_MAX_ATTEMPTS = 2;
+	private static final long SEARCH_MIN_INTERVAL_MS = 120;
+	private static final long SEARCH_MAX_RETRY_WAIT_MS = 5000;
+
 	/** KOPIS 출연진 이름으로 Spotify에서 아티스트를 검색해 대표 결과를 반환한다. 실패 시 null을 반환한다. */
 	public SpotifyArtistSnapshot searchArtistByName(String accessToken, String artistName) {
-		try {
-			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
-				.queryParam("q", artistName)
-				.queryParam("type", "artist")
-				.queryParam("limit", 1)
-				.build()
-				.encode()
-				.toUri();
-			ArtistSearchResponse response = restClient.get()
-				.uri(uri)
-				.headers(headers -> headers.setBearerAuth(accessToken))
-				.retrieve()
-				.body(ArtistSearchResponse.class);
-			if (response == null || response.artists() == null) {
+		for (int attempt = 1; attempt <= SEARCH_MAX_ATTEMPTS; attempt++) {
+			sleep(SEARCH_MIN_INTERVAL_MS);
+			try {
+				java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
+					.queryParam("q", artistName)
+					.queryParam("type", "artist")
+					.queryParam("limit", 1)
+					.build()
+					.encode()
+					.toUri();
+				ArtistSearchResponse response = restClient.get()
+					.uri(uri)
+					.headers(headers -> headers.setBearerAuth(accessToken))
+					.retrieve()
+					.body(ArtistSearchResponse.class);
+				if (response == null || response.artists() == null) {
+					return null;
+				}
+				return response.artists().safeItems().stream()
+					.findFirst()
+					.map(item -> new SpotifyArtistSnapshot(
+						item.id(),
+						item.name(),
+						item.externalUrls() == null ? null : item.externalUrls().spotify(),
+						firstImageUrl(item.images()),
+						toPopularity(item.popularity()),
+						item.genres()
+					))
+					.orElse(null);
+			} catch (RestClientResponseException exception) {
+				if (exception.getStatusCode().value() == 429 && attempt < SEARCH_MAX_ATTEMPTS) {
+					sleep(retryAfterMillis(exception));
+					continue;
+				}
+				logSpotifyError(exception);
+				return null;
+			} catch (RestClientException exception) {
+				log.warn("Spotify 아티스트 검색 실패: artistName={}", artistName);
 				return null;
 			}
-			return response.artists().safeItems().stream()
-				.findFirst()
-				.map(item -> new SpotifyArtistSnapshot(
-					item.id(),
-					item.name(),
-					item.externalUrls() == null ? null : item.externalUrls().spotify(),
-					firstImageUrl(item.images()),
-					toPopularity(item.popularity()),
-					item.genres()
-				))
-				.orElse(null);
-		} catch (RestClientResponseException exception) {
-			logSpotifyError(exception);
-			return null;
-		} catch (RestClientException exception) {
-			log.warn("Spotify 아티스트 검색 실패: artistName={}", artistName);
-			return null;
+		}
+		return null;
+	}
+
+	/** 429 응답의 Retry-After를 존중해 재시도 대기 시간을 정한다. 헤더가 없으면 최소 대기만 적용한다. */
+	private long retryAfterMillis(RestClientResponseException exception) {
+		String header = exception.getResponseHeaders() == null
+			? null
+			: exception.getResponseHeaders().getFirst("Retry-After");
+		if (header == null) {
+			return SEARCH_MIN_INTERVAL_MS;
+		}
+		try {
+			return Math.min(Long.parseLong(header.trim()) * 1000, SEARCH_MAX_RETRY_WAIT_MS);
+		} catch (NumberFormatException exception2) {
+			return SEARCH_MIN_INTERVAL_MS;
+		}
+	}
+
+	private void sleep(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
 		}
 	}
 
