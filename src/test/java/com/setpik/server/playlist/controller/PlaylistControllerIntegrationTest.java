@@ -136,6 +136,13 @@ class PlaylistControllerIntegrationTest {
 		assertThat(syncedArtist.getPopularity()).isEqualTo((short) 90);
 		assertThat(syncedArtist.getImageUrl()).isEqualTo("https://image/artist-1");
 
+		// 동일 플레이리스트를 다시 동기화해도 기존 트랙 삭제 후 최신 목록으로 교체할 수 있다.
+		mockMvc.perform(post("/api/v1/playlists/sync")
+				.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId())))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.syncedPlaylistCount").value(1))
+			.andExpect(jsonPath("$.result.syncedTrackCount").value(1));
+
 		mockMvc.perform(get("/api/v1/playlists/{playlistId}/tracks", syncedPlaylist.getPlaylistId())
 				.param("page", "0")
 				.param("size", "20")

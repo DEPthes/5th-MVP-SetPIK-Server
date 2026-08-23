@@ -163,6 +163,8 @@ public class PlaylistService {
 
 	private int syncTracks(Long playlistId, List<SpotifyTrackSnapshot> sourceTracks) {
 		playlistTrackRepository.deleteByPlaylistId(playlistId);
+		// 기존 연결을 먼저 DB에 반영해야 동일 트랙을 다시 저장할 때 UNIQUE 제약과 충돌하지 않는다.
+		playlistTrackRepository.flush();
 
 		int position = 1;
 		for (SpotifyTrackSnapshot source : sourceTracks) {
