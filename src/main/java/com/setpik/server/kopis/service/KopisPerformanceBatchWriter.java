@@ -21,7 +21,6 @@ import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -38,7 +37,6 @@ public class KopisPerformanceBatchWriter {
 	private static final String SOLO_CONCERT = "SOLO_CONCERT";
 	private static final String JOINT_CONCERT = "JOINT_CONCERT";
 	private static final String FESTIVAL = "FESTIVAL";
-	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(KopisPerformanceBatchWriter.class);
 
 	private final VenueRepository venueRepository;
 	private final PerformanceRepository performanceRepository;
@@ -48,8 +46,6 @@ public class KopisPerformanceBatchWriter {
 	private final PerformanceGenreRepository performanceGenreRepository;
 	private final PerformanceTypeRepository performanceTypeRepository;
 	private final PerformanceTypeMapRepository performanceTypeMapRepository;
-	private final com.setpik.server.auth.client.SpotifyOAuthClient spotifyOAuthClient;
-	private final com.setpik.server.playlist.client.SpotifyPlaylistClient spotifyPlaylistClient;
 
 	public KopisPerformanceBatchWriter(
 		VenueRepository venueRepository,
@@ -59,9 +55,7 @@ public class KopisPerformanceBatchWriter {
 		PerformanceArtistRepository performanceArtistRepository,
 		PerformanceGenreRepository performanceGenreRepository,
 		PerformanceTypeRepository performanceTypeRepository,
-		PerformanceTypeMapRepository performanceTypeMapRepository,
-		com.setpik.server.auth.client.SpotifyOAuthClient spotifyOAuthClient,
-		com.setpik.server.playlist.client.SpotifyPlaylistClient spotifyPlaylistClient
+		PerformanceTypeMapRepository performanceTypeMapRepository
 	) {
 		this.venueRepository = venueRepository;
 		this.performanceRepository = performanceRepository;
@@ -71,8 +65,6 @@ public class KopisPerformanceBatchWriter {
 		this.performanceGenreRepository = performanceGenreRepository;
 		this.performanceTypeRepository = performanceTypeRepository;
 		this.performanceTypeMapRepository = performanceTypeMapRepository;
-		this.spotifyOAuthClient = spotifyOAuthClient;
-		this.spotifyPlaylistClient = spotifyPlaylistClient;
 	}
 
 	/** 네트워크 호출 없이 전달받은 KOPIS 데이터를 한 번의 짧은 트랜잭션으로 저장한다. */
@@ -157,13 +149,10 @@ public class KopisPerformanceBatchWriter {
 
 	private Map<String, Artist> upsertArtists(List<KopisPerformanceDetail> details) {
 		Map<String, String> names = new LinkedHashMap<>();
-		Set<String> musicGenreNames = new HashSet<>();
 		for (KopisPerformanceDetail detail : details) {
 			for (String artistName : detail.artistNames()) {
 				String normalizedName = Artist.normalize(artistName);
-				if (normalizedName.isBlank()) continue;
-				names.putIfAbsent(normalizedName, artistName);
-				if (isMusicGenre(detail.genreName())) musicGenreNames.add(normalizedName);
+				if (!normalizedName.isBlank()) names.putIfAbsent(normalizedName, artistName);
 			}
 		}
 		if (names.isEmpty()) return Map.of();
@@ -172,55 +161,13 @@ public class KopisPerformanceBatchWriter {
 			.findByNormalizedNameIn(new ArrayList<>(names.keySet())).stream()
 			.collect(Collectors.toMap(Artist::getNormalizedName, Function.identity()));
 
-		List<Map.Entry<String, String>> missing = names.entrySet().stream()
+		List<Artist> created = names.entrySet().stream()
 			.filter(entry -> !artists.containsKey(entry.getKey()))
+			.map(entry -> Artist.fromKopis(entry.getValue()))
 			.toList();
-		if (missing.isEmpty()) return artists;
-
-		boolean needsSpotifyLookup = missing.stream()
-			.anyMatch(entry -> musicGenreNames.contains(entry.getKey()));
-		String accessToken = null;
-		if (needsSpotifyLookup) {
-			try {
-				accessToken = spotifyOAuthClient.getClientCredentialsToken();
-			} catch (RuntimeException exception) {
-				log.warn("Spotify 클라이언트 자격 증명 토큰 발급 실패로 아티스트 매칭을 건너뜁니다.", exception);
-			}
-		}
-
-		List<Artist> created = new ArrayList<>();
-		for (Map.Entry<String, String> entry : missing) {
-			Artist matched = accessToken == null || !musicGenreNames.contains(entry.getKey())
-				? null
-				: matchExistingSpotifyArtist(accessToken, entry.getValue(), entry.getKey());
-			if (matched != null) {
-				artists.put(entry.getKey(), matched);
-			} else {
-				created.add(Artist.fromKopis(entry.getValue()));
-			}
-		}
 		artistRepository.saveAllAndFlush(created)
 			.forEach(artist -> artists.put(artist.getNormalizedName(), artist));
 		return artists;
-	}
-
-	/** 연극/뮤지컬/무용 등 배우·무용수 이름까지 Spotify 뮤지션 검색에 태우면 다른 사람과 잘못 매칭될 수 있어, 음악 장르만 대상으로 한다. */
-	private boolean isMusicGenre(String genreName) {
-		return genreName != null && genreName.contains("음악");
-	}
-
-	/** Spotify 검색 결과가 이미 저장된 아티스트라면 KOPIS ID를 연결해 재사용한다. */
-	private Artist matchExistingSpotifyArtist(String accessToken, String kopisArtistName, String normalizedKopisName) {
-		var searched = spotifyPlaylistClient.searchArtistByName(accessToken, kopisArtistName);
-		if (searched == null || searched.spotifyArtistId() == null) {
-			return null;
-		}
-		return artistRepository.findBySpotifyArtistId(searched.spotifyArtistId())
-			.map(existing -> {
-				existing.linkKopisArtistId(normalizedKopisName);
-				return existing;
-			})
-			.orElse(null);
 	}
 
 	private Map<String, Genre> upsertGenres(List<KopisPerformanceDetail> details) {
