@@ -1,5 +1,6 @@
 package com.setpik.server.artist.client;
 
+import java.net.URI;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
 import org.springframework.http.MediaType;
@@ -31,9 +32,9 @@ public class WikidataArtistAliasClient {
 
 	public LookupResult resolve(String kopisArtistName) {
 		try {
-			String requestUri = "/sparql?query="
+			URI requestUri = URI.create("https://query.wikidata.org/sparql?query="
 				+ UriUtils.encodeQueryParam(exactAliasQuery(kopisArtistName), StandardCharsets.UTF_8)
-				+ "&format=json";
+				+ "&format=json");
 			WikidataResponse response = restClient.get()
 				.uri(requestUri)
 				.accept(MediaType.APPLICATION_JSON)
