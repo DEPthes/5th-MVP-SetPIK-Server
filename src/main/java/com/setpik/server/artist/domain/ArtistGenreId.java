@@ -11,6 +11,11 @@ public class ArtistGenreId implements Serializable {
 	public ArtistGenreId() {
 	}
 
+	public ArtistGenreId(Long artistId, Long genreId) {
+		this.artistId = artistId;
+		this.genreId = genreId;
+	}
+
 	@Override
 	public boolean equals(Object object) {
 		if (this == object) return true;

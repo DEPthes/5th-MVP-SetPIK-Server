@@ -27,6 +27,12 @@ public class ArtistGenre extends CreatedAtEntity {
 	protected ArtistGenre() {
 	}
 
+	public ArtistGenre(Long artistId, Long genreId, String sourceType) {
+		this.artistId = artistId;
+		this.genreId = genreId;
+		this.sourceType = sourceType;
+	}
+
 	public Long getArtistId() {
 		return artistId;
 	}
