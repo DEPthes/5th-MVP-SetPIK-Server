@@ -100,3 +100,10 @@ artist-alias:
     enabled: ${ARTIST_ALIAS_SYNC_ENABLED:false}
     cron: ${ARTIST_ALIAS_SYNC_CRON:0 */5 * * * *}
     batch-size: ${ARTIST_ALIAS_SYNC_BATCH_SIZE:20}
+
+artist-genre:
+  sync:
+    # Spotify가 장르를 제공하지 않는 아티스트를 Wikidata 메타데이터로 보강한다.
+    enabled: ${ARTIST_GENRE_SYNC_ENABLED:false}
+    cron: ${ARTIST_GENRE_SYNC_CRON:30 */5 * * * *}
+    batch-size: ${ARTIST_GENRE_SYNC_BATCH_SIZE:20}

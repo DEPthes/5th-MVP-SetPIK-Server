@@ -8,10 +8,10 @@ import org.junit.jupiter.api.Test;
 class SpotifyGenreMapperTest {
 
 	@Test
-	void mapsSpotifySubgenresToKopisGenres() {
+	void mapsSpotifySubgenresToDetailedCanonicalGenres() {
 		assertThat(SpotifyGenreMapper.toKopisGenres(List.of(
-			"k-rap", "korean hip hop", "classical piano", "unknown"
-		))).containsExactly("대중음악", "서양음악(클래식)");
+			"korean hip hop", "classical piano", "unknown"
+		))).containsExactly("HIP_HOP_RAP", "CLASSICAL");
 	}
 
 	@Test
