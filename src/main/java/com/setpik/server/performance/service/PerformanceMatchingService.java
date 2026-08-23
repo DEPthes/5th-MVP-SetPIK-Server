@@ -6,9 +6,12 @@ import com.setpik.server.analysis.domain.PlaylistAnalysis;
 import com.setpik.server.analysis.repository.AnalysisArtistRepository;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.domain.ArtistAlias;
+import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
 import com.setpik.server.artist.domain.ArtistGenre;
 import com.setpik.server.artist.domain.Genre;
 import com.setpik.server.artist.repository.ArtistGenreRepository;
+import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.GenreRepository;
 import com.setpik.server.common.exception.BusinessException;
@@ -56,6 +59,7 @@ public class PerformanceMatchingService {
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
 	private final AnalysisArtistRepository analysisArtistRepository;
 	private final ArtistRepository artistRepository;
+	private final ArtistAliasRepository artistAliasRepository;
 	private final ArtistGenreRepository artistGenreRepository;
 	private final GenreRepository genreRepository;
 	private final PerformanceRepository performanceRepository;
@@ -70,6 +74,7 @@ public class PerformanceMatchingService {
 		PlaylistAnalysisRepository playlistAnalysisRepository,
 		AnalysisArtistRepository analysisArtistRepository,
 		ArtistRepository artistRepository,
+		ArtistAliasRepository artistAliasRepository,
 		ArtistGenreRepository artistGenreRepository,
 		GenreRepository genreRepository,
 		PerformanceRepository performanceRepository,
@@ -83,6 +88,7 @@ public class PerformanceMatchingService {
 		this.playlistAnalysisRepository = playlistAnalysisRepository;
 		this.analysisArtistRepository = analysisArtistRepository;
 		this.artistRepository = artistRepository;
+		this.artistAliasRepository = artistAliasRepository;
 		this.artistGenreRepository = artistGenreRepository;
 		this.genreRepository = genreRepository;
 		this.performanceRepository = performanceRepository;
@@ -163,6 +169,8 @@ public class PerformanceMatchingService {
 		List<PerformanceArtist> lineup = performanceArtistRepository.findByPerformanceIdIn(performanceIds);
 		Map<Long, Artist> artists = loadArtists(selectedArtists, lineup);
 		Map<String, AnalysisArtist> selectedByName = selectedArtistsByNormalizedName(selectedArtists, artists);
+		Map<String, AnalysisArtist> selectedBySpotifyId = selectedArtistsBySpotifyId(selectedArtists, artists);
+		Map<Long, String> spotifyAliasByKopisArtistId = verifiedSpotifyAliases(lineup);
 		Map<Long, List<PerformanceArtist>> lineupByPerformance = lineup.stream()
 			.collect(Collectors.groupingBy(PerformanceArtist::getPerformanceId));
 		Set<Long> soloPerformanceIds = loadSoloPerformanceIds(performanceIds);
@@ -174,6 +182,8 @@ public class PerformanceMatchingService {
 			List<MatchedArtist> matchedArtists = matchArtists(
 				lineupByPerformance.getOrDefault(performance.getPerformanceId(), List.of()),
 				selectedByName,
+				selectedBySpotifyId,
+				spotifyAliasByKopisArtistId,
 				artists
 			);
 			if (matchedArtists.isEmpty()) {
@@ -238,9 +248,37 @@ public class PerformanceMatchingService {
 		return selectedByName;
 	}
 
+	private Map<String, AnalysisArtist> selectedArtistsBySpotifyId(
+		List<AnalysisArtist> selectedArtists,
+		Map<Long, Artist> artists
+	) {
+		Map<String, AnalysisArtist> selectedBySpotifyId = new HashMap<>();
+		for (AnalysisArtist selected : selectedArtists) {
+			Artist artist = artists.get(selected.getArtistId());
+			if (artist == null || artist.getSpotifyArtistId() == null || artist.getSpotifyArtistId().isBlank()) {
+				continue;
+			}
+			selectedBySpotifyId.put(artist.getSpotifyArtistId(), selected);
+		}
+		return selectedBySpotifyId;
+	}
+
+	private Map<Long, String> verifiedSpotifyAliases(List<PerformanceArtist> lineup) {
+		List<Long> kopisArtistIds = lineup.stream().map(PerformanceArtist::getArtistId).distinct().toList();
+		if (kopisArtistIds.isEmpty()) {
+			return Map.of();
+		}
+		return artistAliasRepository.findByKopisArtistIdIn(kopisArtistIds).stream()
+			.filter(alias -> alias.getResolutionStatus() == ArtistAliasResolutionStatus.RESOLVED)
+			.filter(alias -> alias.getSpotifyArtistId() != null && !alias.getSpotifyArtistId().isBlank())
+			.collect(Collectors.toMap(ArtistAlias::getKopisArtistId, ArtistAlias::getSpotifyArtistId));
+	}
+
 	private List<MatchedArtist> matchArtists(
 		List<PerformanceArtist> lineup,
 		Map<String, AnalysisArtist> selectedByName,
+		Map<String, AnalysisArtist> selectedBySpotifyId,
+		Map<Long, String> spotifyAliasByKopisArtistId,
 		Map<Long, Artist> artists
 	) {
 		Map<String, MatchedArtist> matches = new LinkedHashMap<>();
@@ -251,10 +289,14 @@ public class PerformanceMatchingService {
 			}
 			String normalizedName = normalizeArtistName(artist.getArtistName());
 			AnalysisArtist selected = selectedByName.get(normalizedName);
+			if (selected == null) {
+				selected = selectedBySpotifyId.get(spotifyAliasByKopisArtistId.get(performanceArtist.getArtistId()));
+			}
 			if (selected != null) {
-				matches.putIfAbsent(normalizedName, new MatchedArtist(
-					performanceArtist.getArtistId(),
-					artist.getArtistName(),
+				Artist selectedArtist = artists.get(selected.getArtistId());
+				matches.putIfAbsent(String.valueOf(selected.getArtistId()), new MatchedArtist(
+					selected.getArtistId(),
+					selectedArtist == null ? artist.getArtistName() : selectedArtist.getArtistName(),
 					selected.getOccurrenceCount()
 				));
 			}
