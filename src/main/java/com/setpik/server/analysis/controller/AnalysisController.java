@@ -5,6 +5,7 @@ import com.setpik.server.analysis.dto.AnalysisArtistUpdateRequest;
 import com.setpik.server.analysis.dto.AnalysisArtistUpdateResponse;
 import com.setpik.server.analysis.dto.AnalysisDetailResponse;
 import com.setpik.server.analysis.dto.AnalysisResponse;
+import com.setpik.server.analysis.dto.ArtistSelectionCompleteResponse;
 import com.setpik.server.analysis.service.AnalysisService;
 import com.setpik.server.common.api.ApiResponse;
 import com.setpik.server.common.api.PageResponse;
@@ -84,6 +85,15 @@ public class AnalysisController {
 	) {
 		return ApiResponse.success(analysisService.getAnalysisArtists(
 			userId(jwt), analysisId, includeExcluded, toPageable(page, size, sort)));
+	}
+
+	@PostMapping("/analyses/{analysisId}/artist-selection/complete")
+	public ApiResponse<ArtistSelectionCompleteResponse> completeArtistSelection(
+		@PathVariable Long analysisId,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		return ApiResponse.success("관심 아티스트 선택이 완료되었습니다.",
+			analysisService.completeArtistSelection(userId(jwt), analysisId));
 	}
 
 	private Pageable toPageable(int page, int size, String sort) {

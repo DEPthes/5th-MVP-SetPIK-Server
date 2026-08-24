@@ -48,6 +48,9 @@ public class PlaylistAnalysis {
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
 
+	@Column(name = "artist_selection_completed_at")
+	private LocalDateTime artistSelectionCompletedAt;
+
 	@Column(name = "user_id", nullable = false)
 	private Long userId;
 
@@ -77,6 +80,15 @@ public class PlaylistAnalysis {
 	public void updateSelectedArtistCount(Integer selectedArtistCount) {
 		this.selectedArtistCount = selectedArtistCount;
 		this.updatedAt = LocalDateTime.now();
+	}
+
+	public void completeArtistSelection() {
+		if (artistSelectionCompletedAt != null) {
+			return;
+		}
+		LocalDateTime completedAt = LocalDateTime.now();
+		this.artistSelectionCompletedAt = completedAt;
+		this.updatedAt = completedAt;
 	}
 
 	public Long getAnalysisId() {
@@ -117,6 +129,10 @@ public class PlaylistAnalysis {
 
 	public LocalDateTime getUpdatedAt() {
 		return updatedAt;
+	}
+
+	public LocalDateTime getArtistSelectionCompletedAt() {
+		return artistSelectionCompletedAt;
 	}
 
 	public Long getUserId() {
