@@ -188,6 +188,7 @@ public class PrestudyPlaylistService {
 			List<PrestudyCandidateResponse.TrackCandidate> candidateTracks;
 			if (fromOriginal) {
 				candidateTracks = originalTracksByArtist.get(artist.getArtistId()).stream()
+                    .limit(1)
 					.map(track -> new PrestudyCandidateResponse.TrackCandidate(
 						track.getTrackId(), track.getTrackName(), SourceType.ORIGINAL_PLAYLIST.name()))
 					.toList();
@@ -254,6 +255,10 @@ public class PrestudyPlaylistService {
 		Long performanceId,
 		List<Long> selectedTrackIds
 	) {
+         if (selectedTrackIds.isEmpty()) {                          // ← 이 3줄 추가
+        throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+
 		if (new HashSet<>(selectedTrackIds).size() != selectedTrackIds.size()) {
 			throw new BusinessException(ErrorCode.INVALID_REQUEST);
 		}
@@ -272,7 +277,7 @@ public class PrestudyPlaylistService {
 			findOriginalTracksByArtist(analysis.getPlaylistId());
 		Set<Long> originalCandidateTrackIds = originalTracksByArtist.entrySet().stream()
 			.filter(entry -> lineupArtistIds.contains(entry.getKey()))
-			.flatMap(entry -> entry.getValue().stream())
+			.flatMap(entry -> entry.getValue().stream().limit(1))
 			.map(Track::getTrackId)
 			.collect(Collectors.toSet());
 		Map<Long, Set<Long>> artistIdsByTrack = trackArtistRepository
