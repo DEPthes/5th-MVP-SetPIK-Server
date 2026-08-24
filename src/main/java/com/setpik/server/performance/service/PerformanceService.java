@@ -2,6 +2,8 @@ package com.setpik.server.performance.service;
 
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
+import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.common.api.PageResponse;
 import com.setpik.server.common.exception.BusinessException;
@@ -46,6 +48,7 @@ public class PerformanceService {
 	private final TicketScheduleRepository ticketScheduleRepository;
 	private final PerformanceArtistRepository performanceArtistRepository;
 	private final ArtistRepository artistRepository;
+	private final ArtistAliasRepository artistAliasRepository;
 	private final PerformanceMatchRepository performanceMatchRepository;
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository;
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
@@ -56,6 +59,7 @@ public class PerformanceService {
 		TicketScheduleRepository ticketScheduleRepository,
 		PerformanceArtistRepository performanceArtistRepository,
 		ArtistRepository artistRepository,
+		ArtistAliasRepository artistAliasRepository,
 		PerformanceMatchRepository performanceMatchRepository,
 		PerformanceMatchArtistRepository performanceMatchArtistRepository,
 		PlaylistAnalysisRepository playlistAnalysisRepository
@@ -65,6 +69,7 @@ public class PerformanceService {
 		this.ticketScheduleRepository = ticketScheduleRepository;
 		this.performanceArtistRepository = performanceArtistRepository;
 		this.artistRepository = artistRepository;
+		this.artistAliasRepository = artistAliasRepository;
 		this.performanceMatchRepository = performanceMatchRepository;
 		this.performanceMatchArtistRepository = performanceMatchArtistRepository;
 		this.playlistAnalysisRepository = playlistAnalysisRepository;
@@ -81,8 +86,36 @@ public class PerformanceService {
 			.findAllById(lineup.stream().map(PerformanceArtist::getArtistId).toList())
 			.stream()
 			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
+		Map<Long, String> aliasImageUrlByArtistId = aliasImageUrls(artistById.keySet());
 
-		return PerformanceDetailResponse.of(performance, venue, lineup, artistById);
+		return PerformanceDetailResponse.of(performance, venue, lineup, artistById,
+			aliasImageUrlByArtistId);
+	}
+
+	private Map<Long, String> aliasImageUrls(Set<Long> kopisArtistIds) {
+		Map<Long, String> spotifyIdByKopisArtistId = artistAliasRepository
+			.findByKopisArtistIdIn(kopisArtistIds).stream()
+			.filter(alias -> alias.getResolutionStatus() == ArtistAliasResolutionStatus.RESOLVED)
+			.filter(alias -> alias.getSpotifyArtistId() != null)
+			.collect(Collectors.toMap(
+				alias -> alias.getKopisArtistId(),
+				alias -> alias.getSpotifyArtistId(),
+				(left, right) -> left
+			));
+		if (spotifyIdByKopisArtistId.isEmpty()) return Map.of();
+
+		Map<String, String> imageUrlBySpotifyId = artistRepository
+			.findBySpotifyArtistIdIn(spotifyIdByKopisArtistId.values()).stream()
+			.filter(artist -> artist.getImageUrl() != null && !artist.getImageUrl().isBlank())
+			.collect(Collectors.toMap(
+				Artist::getSpotifyArtistId,
+				Artist::getImageUrl,
+				(left, right) -> left
+			));
+		return spotifyIdByKopisArtistId.entrySet().stream()
+			.filter(entry -> imageUrlBySpotifyId.containsKey(entry.getValue()))
+			.collect(Collectors.toMap(Map.Entry::getKey,
+				entry -> imageUrlBySpotifyId.get(entry.getValue())));
 	}
 
 	public List<TicketScheduleResponse> getTicketSchedules(Long performanceId) {

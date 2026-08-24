@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
+import com.setpik.server.artist.domain.ArtistAlias;
+import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.common.api.PageResponse;
 import com.setpik.server.common.exception.BusinessException;
@@ -47,6 +49,7 @@ class PerformanceServiceTest {
 	private final TicketScheduleRepository ticketScheduleRepository = mock(TicketScheduleRepository.class);
 	private final PerformanceArtistRepository performanceArtistRepository = mock(PerformanceArtistRepository.class);
 	private final ArtistRepository artistRepository = mock(ArtistRepository.class);
+	private final ArtistAliasRepository artistAliasRepository = mock(ArtistAliasRepository.class);
 	private final PerformanceMatchRepository performanceMatchRepository = mock(PerformanceMatchRepository.class);
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository =
 		mock(PerformanceMatchArtistRepository.class);
@@ -62,6 +65,7 @@ class PerformanceServiceTest {
 			ticketScheduleRepository,
 			performanceArtistRepository,
 			artistRepository,
+			artistAliasRepository,
 			performanceMatchRepository,
 			performanceMatchArtistRepository,
 			playlistAnalysisRepository
@@ -154,8 +158,16 @@ class PerformanceServiceTest {
 		com.setpik.server.artist.domain.Artist artist = mock(com.setpik.server.artist.domain.Artist.class);
 		when(artist.getArtistId()).thenReturn(7L);
 		when(artist.getArtistName()).thenReturn("Artist A");
-		when(artist.getImageUrl()).thenReturn("https://images.example.com/artists/7.jpg");
+		when(artist.getImageUrl()).thenReturn(null);
 		when(artistRepository.findAllById(List.of(7L))).thenReturn(List.of(artist));
+		when(artistAliasRepository.findByKopisArtistIdIn(java.util.Set.of(7L))).thenReturn(List.of(
+			ArtistAlias.resolved(7L, "spotify-artist-a", "WIKIDATA", "Q1", java.time.LocalDateTime.now())
+		));
+		com.setpik.server.artist.domain.Artist spotifyArtist = mock(com.setpik.server.artist.domain.Artist.class);
+		when(spotifyArtist.getSpotifyArtistId()).thenReturn("spotify-artist-a");
+		when(spotifyArtist.getImageUrl()).thenReturn("https://images.example.com/artists/7.jpg");
+		when(artistRepository.findBySpotifyArtistIdIn(any()))
+			.thenReturn(List.of(spotifyArtist));
 
 		PerformanceDetailResponse result = service.getPerformance(1001L);
 

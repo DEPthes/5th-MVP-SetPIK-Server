@@ -40,7 +40,8 @@ public record PerformanceDetailResponse(
 		Performance performance,
 		Venue venue,
 		List<PerformanceArtist> lineup,
-		Map<Long, Artist> artistById
+		Map<Long, Artist> artistById,
+		Map<Long, String> aliasImageUrlByArtistId
 	) {
 		return new PerformanceDetailResponse(
 			performance.getPerformanceId(),
@@ -56,7 +57,8 @@ public record PerformanceDetailResponse(
 			VenueResponse.from(venue),
 			lineup.stream()
 				.filter(mapping -> artistById.containsKey(mapping.getArtistId()))
-				.map(mapping -> ArtistResponse.of(mapping, artistById.get(mapping.getArtistId())))
+				.map(mapping -> ArtistResponse.of(mapping, artistById.get(mapping.getArtistId()),
+					aliasImageUrlByArtistId.get(mapping.getArtistId())))
 				.toList()
 		);
 	}
@@ -68,11 +70,13 @@ public record PerformanceDetailResponse(
 		Boolean isHeadliner,
 		Long lineupOrder
 	) {
-		public static ArtistResponse of(PerformanceArtist mapping, Artist artist) {
+		public static ArtistResponse of(PerformanceArtist mapping, Artist artist, String aliasImageUrl) {
+			String imageUrl = artist.getImageUrl() == null || artist.getImageUrl().isBlank()
+				? aliasImageUrl : artist.getImageUrl();
 			return new ArtistResponse(
 				artist.getArtistId(),
 				artist.getArtistName(),
-				artist.getImageUrl(),
+				imageUrl,
 				mapping.getIsHeadliner(),
 				mapping.getLineupOrder()
 			);
