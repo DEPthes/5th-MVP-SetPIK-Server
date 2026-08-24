@@ -14,9 +14,11 @@ import com.setpik.server.auth.security.JwtAccessTokenProvider;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.repository.UserRepository;
 import com.setpik.server.performance.domain.Performance;
+import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.domain.PerformanceStatus;
 import com.setpik.server.performance.domain.Venue;
 import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import com.setpik.server.performanceview.domain.PerformanceView;
 import com.setpik.server.performanceview.repository.PerformanceViewRepository;
@@ -46,6 +48,7 @@ class PerformanceViewControllerIntegrationTest {
 	@Autowired private PlaylistAnalysisRepository analysisRepository;
 	@Autowired private VenueRepository venueRepository;
 	@Autowired private PerformanceRepository performanceRepository;
+	@Autowired private PerformanceMatchRepository performanceMatchRepository;
 	@Autowired private PerformanceViewRepository performanceViewRepository;
 	@Autowired private JwtAccessTokenProvider accessTokenProvider;
 
@@ -75,6 +78,10 @@ class PerformanceViewControllerIntegrationTest {
 			now.minusDays(1)));
 		PerformanceView latestView = performanceViewRepository.saveAndFlush(new PerformanceView(
 			user.getUserId(), analysis.getAnalysisId(), latestPerformance.getPerformanceId(), now));
+		performanceMatchRepository.saveAndFlush(PerformanceMatch.create(
+			(byte) 2, 1, 3, (byte) 33,
+			"플레이리스트 속 아티스트 1팀이 이 공연에 출연합니다.",
+			now, latestPerformance.getPerformanceId(), analysis.getAnalysisId(), null));
 		performanceViewRepository.saveAndFlush(new PerformanceView(
 			otherUser.getUserId(), analysis.getAnalysisId(), latestPerformance.getPerformanceId(),
 			now.plusDays(1)));
@@ -96,6 +103,7 @@ class PerformanceViewControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].startDate").value("2026-09-01"))
 			.andExpect(jsonPath("$.result.content[0].venueName").value("송도달빛축제공원"))
 			.andExpect(jsonPath("$.result.content[0].analysisId").value(analysis.getAnalysisId()))
+			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(1))
 			.andExpect(jsonPath("$.result.content[0].viewedAt", endsWith("+09:00")))
 			.andExpect(jsonPath("$.result.page").value(0))
 			.andExpect(jsonPath("$.result.size").value(1))

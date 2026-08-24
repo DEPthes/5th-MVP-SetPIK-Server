@@ -32,12 +32,16 @@ public interface PerformanceViewRepository extends JpaRepository<PerformanceView
 				performance.startDate,
 				venue.venueName,
 				performanceView.analysisId,
+				coalesce(match.matchedArtistCount, 0),
 				performanceView.viewedAt
 			)
 			from PerformanceView performanceView
 			join Performance performance
 				on performance.performanceId = performanceView.performanceId
 			join Venue venue on venue.venueId = performance.venueId
+			left join PerformanceMatch match
+				on match.analysisId = performanceView.analysisId
+				and match.performanceId = performanceView.performanceId
 			where performanceView.userId = :userId
 			  and performance.isDeleted = false
 			""",

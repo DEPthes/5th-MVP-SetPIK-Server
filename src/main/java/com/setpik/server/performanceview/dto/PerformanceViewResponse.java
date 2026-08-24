@@ -12,6 +12,7 @@ public record PerformanceViewResponse(
 	LocalDate startDate,
 	String venueName,
 	Long analysisId,
+	Integer matchedArtistCount,
 	OffsetDateTime viewedAt
 ) {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -25,6 +26,7 @@ public record PerformanceViewResponse(
 			summary.startDate(),
 			summary.venueName(),
 			summary.analysisId(),
+			summary.matchedArtistCount(),
 			summary.viewedAt().atZone(KST).toOffsetDateTime()
 		);
 	}

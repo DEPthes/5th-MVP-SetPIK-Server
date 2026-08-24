@@ -12,6 +12,7 @@ public record PerformanceViewSummary(
 	LocalDate startDate,
 	String venueName,
 	Long analysisId,
+	Integer matchedArtistCount,
 	LocalDateTime viewedAt
 ) {
 }
