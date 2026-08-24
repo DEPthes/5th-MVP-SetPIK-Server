@@ -43,9 +43,6 @@ public class AnalysisService {
 	/** 주요 아티스트로 표시할 최소 출현 횟수. */
 	private static final int MAJOR_ARTIST_THRESHOLD = 2;
 
-	/** 분석 결과 조회 시 함께 내려줄 상위 아티스트 수. */
-	private static final int TOP_ARTIST_LIMIT = 5;
-
 	private final PlaylistAnalysisRepository analysisRepository;
 	private final AnalysisArtistRepository analysisArtistRepository;
 	private final SpotifyPlaylistRepository playlistRepository;
@@ -130,7 +127,6 @@ public class AnalysisService {
 		List<AnalysisArtist> topArtists = analysisArtistRepository
 			.findByAnalysisIdOrderByDisplayRankAsc(analysis.getAnalysisId()).stream()
 			.filter(artist -> !artist.getIsExcluded())
-			.limit(TOP_ARTIST_LIMIT)
 			.toList();
 
 		return new AnalysisDetailResponse(

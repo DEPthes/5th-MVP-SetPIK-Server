@@ -121,6 +121,7 @@ class AnalysisControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.warningMessage")
 				.value("곡 수가 적어 분석 정확도가 낮을 수 있습니다."))
 			.andExpect(jsonPath("$.result.selectedArtistCount").value(2))
+			.andExpect(jsonPath("$.result.topArtists.length()").value(2))
 			.andExpect(jsonPath("$.result.topArtists[0].artistId").value(repeatedArtist.getArtistId()))
 			.andExpect(jsonPath("$.result.topArtists[0].artistName").value("Repeated Artist"))
 			.andExpect(jsonPath("$.result.topArtists[0].artistImageUrl")
