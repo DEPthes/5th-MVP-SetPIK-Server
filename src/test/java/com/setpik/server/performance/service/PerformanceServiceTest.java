@@ -154,6 +154,7 @@ class PerformanceServiceTest {
 		com.setpik.server.artist.domain.Artist artist = mock(com.setpik.server.artist.domain.Artist.class);
 		when(artist.getArtistId()).thenReturn(7L);
 		when(artist.getArtistName()).thenReturn("Artist A");
+		when(artist.getImageUrl()).thenReturn("https://images.example.com/artists/7.jpg");
 		when(artistRepository.findAllById(List.of(7L))).thenReturn(List.of(artist));
 
 		PerformanceDetailResponse result = service.getPerformance(1001L);
@@ -168,6 +169,7 @@ class PerformanceServiceTest {
 		assertThat(result.artists()).singleElement().satisfies(response -> {
 			assertThat(response.artistId()).isEqualTo(7L);
 			assertThat(response.artistName()).isEqualTo("Artist A");
+			assertThat(response.artistImageUrl()).isEqualTo("https://images.example.com/artists/7.jpg");
 			assertThat(response.lineupOrder()).isEqualTo(1L);
 		});
 	}

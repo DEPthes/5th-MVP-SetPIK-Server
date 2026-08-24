@@ -64,6 +64,7 @@ public record PerformanceDetailResponse(
 	public record ArtistResponse(
 		Long artistId,
 		String artistName,
+		String artistImageUrl,
 		Boolean isHeadliner,
 		Long lineupOrder
 	) {
@@ -71,6 +72,7 @@ public record PerformanceDetailResponse(
 			return new ArtistResponse(
 				artist.getArtistId(),
 				artist.getArtistName(),
+				artist.getImageUrl(),
 				mapping.getIsHeadliner(),
 				mapping.getLineupOrder()
 			);
