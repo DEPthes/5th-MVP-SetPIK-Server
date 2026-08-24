@@ -16,10 +16,12 @@ import com.setpik.server.artist.domain.Artist;
 import com.setpik.server.artist.domain.ArtistAlias;
 import com.setpik.server.artist.domain.ArtistGenre;
 import com.setpik.server.artist.domain.Genre;
+import com.setpik.server.artist.domain.SpotifyArtistNameAlias;
 import com.setpik.server.artist.repository.ArtistGenreRepository;
 import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.GenreRepository;
+import com.setpik.server.artist.repository.SpotifyArtistNameAliasRepository;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.performance.domain.Performance;
@@ -53,6 +55,8 @@ class PerformanceMatchingServiceTest {
 	private final ArtistRepository artistRepository = mock(ArtistRepository.class);
 	private final ArtistAliasRepository artistAliasRepository = mock(ArtistAliasRepository.class);
 	private final ArtistGenreRepository artistGenreRepository = mock(ArtistGenreRepository.class);
+	private final SpotifyArtistNameAliasRepository spotifyArtistNameAliasRepository =
+		mock(SpotifyArtistNameAliasRepository.class);
 	private final GenreRepository genreRepository = mock(GenreRepository.class);
 	private final PerformanceRepository performanceRepository = mock(PerformanceRepository.class);
 	private final PerformanceArtistRepository performanceArtistRepository = mock(PerformanceArtistRepository.class);
@@ -73,6 +77,7 @@ class PerformanceMatchingServiceTest {
 			artistRepository,
 			artistAliasRepository,
 			artistGenreRepository,
+			spotifyArtistNameAliasRepository,
 			genreRepository,
 			performanceRepository,
 			performanceArtistRepository,
@@ -368,6 +373,81 @@ class PerformanceMatchingServiceTest {
 		PerformanceMatchResponse response = service.calculate(1L, 501L, new PerformanceMatchRequest(null, null));
 
 		assertThat(response.matchedPerformanceCount()).isZero();
+	}
+
+	@Test
+	void createsFirstPriorityMatchFromExactArtistPhraseWhenKopisLineupIsEmpty() {
+		stubEmptyLineupTitleScenario("fromis_9", "fromis_9 ASIA TOUR: TOMORROW GLOW. [서울]", List.of());
+
+		PerformanceMatchResponse response = service.calculate(1L, 501L, new PerformanceMatchRequest(null, null));
+
+		assertThat(response.matchedPerformanceCount()).isEqualTo(1);
+		ArgumentCaptor<PerformanceMatch> matchCaptor = ArgumentCaptor.forClass(PerformanceMatch.class);
+		verify(performanceMatchRepository).saveAndFlush(matchCaptor.capture());
+		assertThat(matchCaptor.getValue().getMatchPriority()).isEqualTo((byte) 1);
+		assertThat(matchCaptor.getValue().getMatchedArtistCount()).isEqualTo(1);
+		assertThat(matchCaptor.getValue().getLineupArtistCount()).isEqualTo(1);
+	}
+
+	@Test
+	void createsFirstPriorityMatchFromVerifiedKoreanTitleAliasWhenKopisLineupIsEmpty() {
+		SpotifyArtistNameAlias alias = SpotifyArtistNameAlias.wikidata(
+			7L, "프로미스나인", "프로미스나인", "Q41398331");
+		stubEmptyLineupTitleScenario("fromis_9", "프로미스나인 아시아 투어 [서울]", List.of(alias));
+
+		PerformanceMatchResponse response = service.calculate(1L, 501L, new PerformanceMatchRequest(null, null));
+
+		assertThat(response.matchedPerformanceCount()).isEqualTo(1);
+		ArgumentCaptor<PerformanceMatch> matchCaptor = ArgumentCaptor.forClass(PerformanceMatch.class);
+		verify(performanceMatchRepository).saveAndFlush(matchCaptor.capture());
+		assertThat(matchCaptor.getValue().getMatchPriority()).isEqualTo((byte) 1);
+	}
+
+	@Test
+	void rejectsArtistNameThatOnlyAppearsAsTitleSubstring() {
+		stubEmptyLineupTitleScenario("YENA", "ooyenaoop LIVE", List.of());
+
+		PerformanceMatchResponse response = service.calculate(1L, 501L, new PerformanceMatchRequest(null, null));
+
+		assertThat(response.matchedPerformanceCount()).isZero();
+	}
+
+	private void stubEmptyLineupTitleScenario(
+		String artistName,
+		String performanceName,
+		List<SpotifyArtistNameAlias> titleAliases
+	) {
+		PlaylistAnalysis analysis = mock(PlaylistAnalysis.class);
+		when(analysis.getAnalysisId()).thenReturn(501L);
+		when(analysis.getAnalysisStatus()).thenReturn(AnalysisStatus.COMPLETED);
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+
+		AnalysisArtist selected = mock(AnalysisArtist.class);
+		when(selected.getArtistId()).thenReturn(7L);
+		when(selected.getOccurrenceCount()).thenReturn(3);
+		when(selected.getIsMajor()).thenReturn(false);
+		when(analysisArtistRepository.findByAnalysisIdAndIsExcludedFalse(501L)).thenReturn(List.of(selected));
+
+		Performance performance = mock(Performance.class);
+		when(performance.getPerformanceId()).thenReturn(10L);
+		when(performance.getPerformanceName()).thenReturn(performanceName);
+		when(performance.getStartDate()).thenReturn(LocalDate.of(2026, 9, 4));
+		when(performanceRepository.findMatchCandidates(any(), any())).thenReturn(List.of(performance));
+		when(performanceArtistRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
+
+		Artist selectedArtist = mock(Artist.class);
+		when(selectedArtist.getArtistId()).thenReturn(7L);
+		when(selectedArtist.getArtistName()).thenReturn(artistName);
+		when(artistRepository.findAllById(any())).thenReturn(List.of(selectedArtist));
+		when(spotifyArtistNameAliasRepository.findByArtistIdIn(List.of(7L))).thenReturn(titleAliases);
+		stubPerformanceGenre(10L, 1L, "대중음악");
+		when(performanceTypeMapRepository.findByPerformanceIdIn(List.of(10L))).thenReturn(List.of());
+		when(performanceMatchRepository.findAllByAnalysisId(501L)).thenReturn(List.of());
+
+		PerformanceMatch persistedMatch = mock(PerformanceMatch.class);
+		when(persistedMatch.getMatchId()).thenReturn(703L);
+		when(performanceMatchRepository.saveAndFlush(any(PerformanceMatch.class))).thenReturn(persistedMatch);
 	}
 
 	private void stubPerformanceGenre(Long performanceId, Long genreId, String genreName) {

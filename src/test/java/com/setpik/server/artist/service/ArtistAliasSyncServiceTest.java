@@ -13,6 +13,7 @@ import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
 import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.SpotifyArtistAliasSyncStatusRepository;
+import com.setpik.server.artist.repository.SpotifyArtistNameAliasRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +28,7 @@ class ArtistAliasSyncServiceTest {
 		ArtistAliasRepository aliases = mock(ArtistAliasRepository.class);
 		SpotifyArtistAliasSyncStatusRepository statuses =
 			mock(SpotifyArtistAliasSyncStatusRepository.class);
+		SpotifyArtistNameAliasRepository nameAliases = mock(SpotifyArtistNameAliasRepository.class);
 		WikidataArtistAliasClient client = mock(WikidataArtistAliasClient.class);
 		Artist spotifyArtist = mock(Artist.class);
 		Artist kopisArtist = mock(Artist.class);
@@ -47,7 +49,7 @@ class ArtistAliasSyncServiceTest {
 		when(artists.findUnresolvedKopisMusicArtistIds("음악", 99)).thenReturn(List.of());
 
 		ArtistAliasSyncService service = new ArtistAliasSyncService(
-			artists, aliases, client, statuses);
+			artists, aliases, client, statuses, nameAliases);
 		var response = service.syncPendingAliases(100);
 
 		assertThat(response.candidateArtistCount()).isEqualTo(1);
@@ -61,5 +63,7 @@ class ArtistAliasSyncServiceTest {
 		assertThat(aliasCaptor.getValue().getResolutionStatus())
 			.isEqualTo(ArtistAliasResolutionStatus.RESOLVED);
 		verify(statuses).save(any());
+		verify(nameAliases).deleteByArtistId(1L);
+		verify(nameAliases).saveAll(any());
 	}
 }
