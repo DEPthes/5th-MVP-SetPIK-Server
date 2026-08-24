@@ -5,6 +5,8 @@ import com.setpik.server.common.config.SwaggerConfig;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.member.dto.UserProfileResponse;
+import com.setpik.server.member.dto.OnboardingStatusResponse;
+import com.setpik.server.member.service.OnboardingService;
 import com.setpik.server.member.service.UserProfileService;
 import com.setpik.server.member.service.UserWithdrawalService;
 import com.setpik.server.spotify.dto.SpotifyConnectionResponse;
@@ -29,15 +31,18 @@ public class UserController {
 	private final UserProfileService userProfileService;
 	private final UserWithdrawalService userWithdrawalService;
 	private final SpotifyConnectionService spotifyConnectionService;
+	private final OnboardingService onboardingService;
 
 	public UserController(
 		UserProfileService userProfileService,
 		UserWithdrawalService userWithdrawalService,
-		SpotifyConnectionService spotifyConnectionService
+		SpotifyConnectionService spotifyConnectionService,
+		OnboardingService onboardingService
 	) {
 		this.userProfileService = userProfileService;
 		this.userWithdrawalService = userWithdrawalService;
 		this.spotifyConnectionService = spotifyConnectionService;
+		this.onboardingService = onboardingService;
 	}
 
 	@Operation(
@@ -184,6 +189,19 @@ public class UserController {
 		return ResponseEntity.ok(ApiResponse.success(
 			spotifyConnectionService.getConnection(userId)
 		));
+	}
+
+	@Operation(
+		summary = "온보딩 상태 조회",
+		description = "최근 플레이리스트 선택과 관심 아티스트 선택 완료 여부를 조회합니다."
+	)
+	@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
+	@GetMapping("/me/onboarding-status")
+	public ResponseEntity<ApiResponse<OnboardingStatusResponse>> getOnboardingStatus(
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		Long userId = parseUserId(jwt.getSubject());
+		return ResponseEntity.ok(ApiResponse.success(onboardingService.getStatus(userId)));
 	}
 
 	private Long parseUserId(String subject) {

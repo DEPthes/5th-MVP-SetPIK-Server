@@ -8,6 +8,7 @@ import com.setpik.server.analysis.dto.AnalysisArtistUpdateRequest;
 import com.setpik.server.analysis.dto.AnalysisArtistUpdateResponse;
 import com.setpik.server.analysis.dto.AnalysisDetailResponse;
 import com.setpik.server.analysis.dto.AnalysisResponse;
+import com.setpik.server.analysis.dto.ArtistSelectionCompleteResponse;
 import com.setpik.server.analysis.dto.TopArtistResponse;
 import com.setpik.server.analysis.repository.AnalysisArtistRepository;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
@@ -205,6 +206,14 @@ public class AnalysisService {
 		analysis.updateSelectedArtistCount((int) remainingCount);
 
 		return new AnalysisArtistUpdateResponse(analysisId, request.artists().size());
+	}
+
+	@Transactional
+	public ArtistSelectionCompleteResponse completeArtistSelection(Long userId, Long analysisId) {
+		PlaylistAnalysis analysis = findOwnedAnalysis(userId, analysisId);
+		analysis.completeArtistSelection();
+		return ArtistSelectionCompleteResponse.of(
+			analysis.getAnalysisId(), analysis.getArtistSelectionCompletedAt());
 	}
 
 	/** 트랙 목록을 순회하며 아티스트별 출현 횟수를 집계한다. */
