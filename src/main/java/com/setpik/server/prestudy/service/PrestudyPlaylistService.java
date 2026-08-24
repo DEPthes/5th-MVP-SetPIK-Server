@@ -4,6 +4,9 @@ import com.setpik.server.analysis.domain.AnalysisStatus;
 import com.setpik.server.analysis.domain.PlaylistAnalysis;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.domain.ArtistAlias;
+import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
+import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.auth.client.SpotifyApiException;
 import com.setpik.server.auth.client.SpotifyOAuthClient;
@@ -14,7 +17,10 @@ import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.performance.domain.Performance;
 import com.setpik.server.performance.domain.PerformanceArtist;
+import com.setpik.server.performance.domain.PerformanceMatch;
+import com.setpik.server.performance.domain.PerformanceMatchArtist;
 import com.setpik.server.performance.repository.PerformanceArtistRepository;
+import com.setpik.server.performance.repository.PerformanceMatchArtistRepository;
 import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.playlist.client.SpotifyPlaylistApiException;
@@ -65,10 +71,12 @@ public class PrestudyPlaylistService {
 	private final PerformanceRepository performanceRepository;
 	private final PerformanceArtistRepository performanceArtistRepository;
 	private final PerformanceMatchRepository performanceMatchRepository;
+	private final PerformanceMatchArtistRepository performanceMatchArtistRepository;
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
 	private final PlaylistTrackRepository playlistTrackRepository;
 	private final TrackRepository trackRepository;
 	private final ArtistRepository artistRepository;
+	private final ArtistAliasRepository artistAliasRepository;
 	private final TrackArtistRepository trackArtistRepository;
 	private final SpotifyAccountRepository spotifyAccountRepository;
 	private final SpotifyPlaylistClient spotifyPlaylistClient;
@@ -82,10 +90,12 @@ public class PrestudyPlaylistService {
 		PerformanceRepository performanceRepository,
 		PerformanceArtistRepository performanceArtistRepository,
 		PerformanceMatchRepository performanceMatchRepository,
+		PerformanceMatchArtistRepository performanceMatchArtistRepository,
 		PlaylistAnalysisRepository playlistAnalysisRepository,
 		PlaylistTrackRepository playlistTrackRepository,
 		TrackRepository trackRepository,
 		ArtistRepository artistRepository,
+		ArtistAliasRepository artistAliasRepository,
 		TrackArtistRepository trackArtistRepository,
 		SpotifyAccountRepository spotifyAccountRepository,
 		SpotifyPlaylistClient spotifyPlaylistClient,
@@ -98,10 +108,12 @@ public class PrestudyPlaylistService {
 		this.performanceRepository = performanceRepository;
 		this.performanceArtistRepository = performanceArtistRepository;
 		this.performanceMatchRepository = performanceMatchRepository;
+		this.performanceMatchArtistRepository = performanceMatchArtistRepository;
 		this.playlistAnalysisRepository = playlistAnalysisRepository;
 		this.playlistTrackRepository = playlistTrackRepository;
 		this.trackRepository = trackRepository;
 		this.artistRepository = artistRepository;
+		this.artistAliasRepository = artistAliasRepository;
 		this.trackArtistRepository = trackArtistRepository;
 		this.spotifyAccountRepository = spotifyAccountRepository;
 		this.spotifyPlaylistClient = spotifyPlaylistClient;
@@ -166,32 +178,25 @@ public class PrestudyPlaylistService {
 	public PrestudyCandidateResponse getCandidates(Long userId, Long performanceId, Long analysisId) {
 		PlaylistAnalysis analysis = findCompletedOwnedAnalysis(userId, analysisId);
 		findActivePerformance(performanceId);
-		validateMatchedPerformance(analysisId, performanceId);
-
-		List<PerformanceArtist> lineupArtists =
-			performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(performanceId);
-		Map<Long, Artist> artistById = artistRepository
-			.findAllById(lineupArtists.stream().map(PerformanceArtist::getArtistId).toList())
-			.stream()
-			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
+		PerformanceMatch match = validateMatchedPerformance(analysisId, performanceId);
+		List<EffectiveArtist> lineupArtists = resolveEffectiveArtists(performanceId, match);
 		Map<Long, List<Track>> originalTracksByArtist =
 			findOriginalTracksByArtist(analysis.getPlaylistId());
 
 		String accessToken = null;
 		List<PrestudyCandidateResponse.ArtistCandidate> artists = new ArrayList<>();
-		for (PerformanceArtist lineupArtist : lineupArtists) {
-			Artist artist = artistById.get(lineupArtist.getArtistId());
-			if (artist == null) {
-				throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-			}
-			boolean fromOriginal = originalTracksByArtist.containsKey(artist.getArtistId());
+		for (EffectiveArtist artist : lineupArtists) {
+			List<Track> originalTracks = originalTracks(artist, originalTracksByArtist);
+			boolean fromOriginal = !originalTracks.isEmpty();
 			List<PrestudyCandidateResponse.TrackCandidate> candidateTracks;
 			if (fromOriginal) {
-				candidateTracks = originalTracksByArtist.get(artist.getArtistId()).stream()
-                    .limit(1)
+				candidateTracks = originalTracks.stream()
+					.limit(1)
 					.map(track -> new PrestudyCandidateResponse.TrackCandidate(
 						track.getTrackId(), track.getTrackName(), SourceType.ORIGINAL_PLAYLIST.name()))
 					.toList();
+			} else if (artist.spotifyArtistId() == null || artist.spotifyArtistId().isBlank()) {
+				candidateTracks = List.of();
 			} else {
 				if (accessToken == null) {
 					accessToken = resolveAccessToken(findConnectedSpotifyAccount(userId));
@@ -199,7 +204,7 @@ public class PrestudyPlaylistService {
 				candidateTracks = buildRepresentativeTrackCandidate(accessToken, artist);
 			}
 			artists.add(new PrestudyCandidateResponse.ArtistCandidate(
-				artist.getArtistId(), artist.getArtistName(), fromOriginal, candidateTracks));
+				artist.displayArtistId(), artist.artistName(), fromOriginal, candidateTracks));
 		}
 
 		return new PrestudyCandidateResponse(performanceId, analysisId, artists);
@@ -213,9 +218,9 @@ public class PrestudyPlaylistService {
 	) {
 		PlaylistAnalysis analysis = findCompletedOwnedAnalysis(userId, request.analysisId());
 		findActivePerformance(performanceId);
-		validateMatchedPerformance(request.analysisId(), performanceId);
+		PerformanceMatch match = validateMatchedPerformance(request.analysisId(), performanceId);
 		List<SelectedTrack> selectedTracks = resolveSelectedTracks(
-			analysis, performanceId, request.selectedTrackIds());
+			analysis, performanceId, match, request.selectedTrackIds());
 
 		SpotifyAccount account = findConnectedSpotifyAccount(userId);
 		String accessToken = resolveAccessToken(account);
@@ -253,11 +258,12 @@ public class PrestudyPlaylistService {
 	private List<SelectedTrack> resolveSelectedTracks(
 		PlaylistAnalysis analysis,
 		Long performanceId,
+		PerformanceMatch match,
 		List<Long> selectedTrackIds
 	) {
-         if (selectedTrackIds.isEmpty()) {                          // ← 이 3줄 추가
-        throw new BusinessException(ErrorCode.INVALID_REQUEST);
-        }
+		if (selectedTrackIds.isEmpty()) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
 
 		if (new HashSet<>(selectedTrackIds).size() != selectedTrackIds.size()) {
 			throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -269,15 +275,14 @@ public class PrestudyPlaylistService {
 			throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
 		}
 
-		Set<Long> lineupArtistIds = performanceArtistRepository
-			.findByPerformanceIdOrderByLineupOrderAsc(performanceId).stream()
-			.map(PerformanceArtist::getArtistId)
+		List<EffectiveArtist> effectiveArtists = resolveEffectiveArtists(performanceId, match);
+		Set<Long> lineupArtistIds = effectiveArtists.stream()
+			.flatMap(artist -> artist.matchableArtistIds().stream())
 			.collect(Collectors.toSet());
 		Map<Long, List<Track>> originalTracksByArtist =
 			findOriginalTracksByArtist(analysis.getPlaylistId());
-		Set<Long> originalCandidateTrackIds = originalTracksByArtist.entrySet().stream()
-			.filter(entry -> lineupArtistIds.contains(entry.getKey()))
-			.flatMap(entry -> entry.getValue().stream().limit(1))
+		Set<Long> originalCandidateTrackIds = effectiveArtists.stream()
+			.flatMap(artist -> originalTracks(artist, originalTracksByArtist).stream().limit(1))
 			.map(Track::getTrackId)
 			.collect(Collectors.toSet());
 		Map<Long, Set<Long>> artistIdsByTrack = trackArtistRepository
@@ -305,15 +310,28 @@ public class PrestudyPlaylistService {
 		return result;
 	}
 
+	private List<Track> originalTracks(
+		EffectiveArtist artist,
+		Map<Long, List<Track>> originalTracksByArtist
+	) {
+		LinkedHashMap<Long, Track> tracks = new LinkedHashMap<>();
+		for (Long artistId : artist.matchableArtistIds()) {
+			for (Track track : originalTracksByArtist.getOrDefault(artistId, List.of())) {
+				tracks.putIfAbsent(track.getTrackId(), track);
+			}
+		}
+		return List.copyOf(tracks.values());
+	}
+
 	private List<PrestudyCandidateResponse.TrackCandidate> buildRepresentativeTrackCandidate(
 		String accessToken,
-		Artist artist
+		EffectiveArtist artist
 	) {
-		if (artist.getSpotifyArtistId() == null || artist.getSpotifyArtistId().isBlank()) {
+		if (artist.spotifyArtistId() == null || artist.spotifyArtistId().isBlank()) {
 			return List.of();
 		}
 		SpotifyTrackSnapshot source = spotifyPlaylistClient.fetchRepresentativeTrack(
-			accessToken, artist.getSpotifyArtistId(), artist.getArtistName());
+			accessToken, artist.spotifyArtistId(), artist.artistName());
 		if (source == null) {
 			return List.of();
 		}
@@ -325,12 +343,77 @@ public class PrestudyPlaylistService {
 				source.durationMs(), source.isPlayable()
 			)));
 		if (!trackArtistRepository.existsByTrackIdAndArtistId(
-			track.getTrackId(), artist.getArtistId())) {
+			track.getTrackId(), artist.trackArtistId())) {
 			trackArtistRepository.save(new TrackArtist(
-				track.getTrackId(), artist.getArtistId(), (short) 1));
+				track.getTrackId(), artist.trackArtistId(), (short) 1));
 		}
 		return List.of(new PrestudyCandidateResponse.TrackCandidate(
 			track.getTrackId(), track.getTrackName(), SourceType.MATCHED_ARTIST.name()));
+	}
+
+	private List<EffectiveArtist> resolveEffectiveArtists(
+		Long performanceId,
+		PerformanceMatch match
+	) {
+		List<PerformanceArtist> lineup = performanceArtistRepository
+			.findByPerformanceIdOrderByLineupOrderAsc(performanceId);
+		List<Long> lineupArtistIds = lineup.stream().map(PerformanceArtist::getArtistId).toList();
+		Map<Long, Artist> lineupArtistById = (lineupArtistIds.isEmpty()
+			? List.<Artist>of() : artistRepository.findAllById(lineupArtistIds)).stream()
+			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
+		Map<Long, ArtistAlias> aliasByKopisArtistId = (lineupArtistIds.isEmpty()
+			? List.<ArtistAlias>of() : artistAliasRepository.findByKopisArtistIdIn(lineupArtistIds)).stream()
+			.filter(alias -> alias.getResolutionStatus() == ArtistAliasResolutionStatus.RESOLVED)
+			.filter(alias -> alias.getSpotifyArtistId() != null)
+			.collect(Collectors.toMap(ArtistAlias::getKopisArtistId, Function.identity(),
+				(left, right) -> left));
+		List<String> aliasSpotifyIds = aliasByKopisArtistId.values().stream()
+			.map(ArtistAlias::getSpotifyArtistId).distinct().toList();
+		Map<String, Artist> spotifyArtistBySpotifyId = (aliasSpotifyIds.isEmpty()
+			? List.<Artist>of() : artistRepository.findBySpotifyArtistIdIn(aliasSpotifyIds)).stream()
+			.collect(Collectors.toMap(Artist::getSpotifyArtistId, Function.identity(),
+				(left, right) -> left));
+
+		LinkedHashMap<String, EffectiveArtist> resolved = new LinkedHashMap<>();
+		for (PerformanceArtist mapping : lineup) {
+			Artist lineupArtist = lineupArtistById.get(mapping.getArtistId());
+			if (lineupArtist == null) continue;
+			ArtistAlias alias = aliasByKopisArtistId.get(lineupArtist.getArtistId());
+			String spotifyId = lineupArtist.getSpotifyArtistId();
+			Artist spotifyArtist = spotifyId == null || spotifyId.isBlank() ? null : lineupArtist;
+			if ((spotifyId == null || spotifyId.isBlank()) && alias != null) {
+				spotifyId = alias.getSpotifyArtistId();
+				spotifyArtist = spotifyArtistBySpotifyId.get(spotifyId);
+			}
+			Long spotifyDatabaseArtistId = spotifyArtist == null ? null : spotifyArtist.getArtistId();
+			Set<Long> matchableIds = new HashSet<>();
+			matchableIds.add(lineupArtist.getArtistId());
+			if (spotifyDatabaseArtistId != null) matchableIds.add(spotifyDatabaseArtistId);
+			EffectiveArtist effective = new EffectiveArtist(
+				lineupArtist.getArtistId(), lineupArtist.getArtistName(), spotifyId,
+				spotifyDatabaseArtistId == null ? lineupArtist.getArtistId() : spotifyDatabaseArtistId,
+				Set.copyOf(matchableIds));
+			resolved.putIfAbsent(effective.identityKey(), effective);
+		}
+
+		if (match.getMatchId() != null) {
+			List<PerformanceMatchArtist> matchArtists = performanceMatchArtistRepository
+				.findByMatchId(match.getMatchId());
+			List<Long> matchedArtistIds = matchArtists.stream()
+				.map(PerformanceMatchArtist::getArtistId).toList();
+			Map<Long, Artist> matchedArtistById = (matchedArtistIds.isEmpty()
+				? List.<Artist>of() : artistRepository.findAllById(matchedArtistIds)).stream()
+				.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
+			for (PerformanceMatchArtist matchArtist : matchArtists) {
+				Artist artist = matchedArtistById.get(matchArtist.getArtistId());
+				if (artist == null) continue;
+				EffectiveArtist effective = new EffectiveArtist(
+					artist.getArtistId(), artist.getArtistName(), artist.getSpotifyArtistId(),
+					artist.getArtistId(), Set.of(artist.getArtistId()));
+				resolved.putIfAbsent(effective.identityKey(), effective);
+			}
+		}
+		return List.copyOf(resolved.values());
 	}
 
 	private Map<Long, List<Track>> findOriginalTracksByArtist(Long playlistId) {
@@ -379,8 +462,8 @@ public class PrestudyPlaylistService {
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 	}
 
-	private void validateMatchedPerformance(Long analysisId, Long performanceId) {
-		performanceMatchRepository.findByAnalysisIdAndPerformanceId(analysisId, performanceId)
+	private PerformanceMatch validateMatchedPerformance(Long analysisId, Long performanceId) {
+		return performanceMatchRepository.findByAnalysisIdAndPerformanceId(analysisId, performanceId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 	}
 
@@ -436,5 +519,18 @@ public class PrestudyPlaylistService {
 		SourceType sourceType,
 		boolean isNewArtistTrack
 	) {
+	}
+
+	private record EffectiveArtist(
+		Long displayArtistId,
+		String artistName,
+		String spotifyArtistId,
+		Long trackArtistId,
+		Set<Long> matchableArtistIds
+	) {
+		private String identityKey() {
+			return spotifyArtistId == null || spotifyArtistId.isBlank()
+				? "artist:" + displayArtistId : "spotify:" + spotifyArtistId;
+		}
 	}
 }
