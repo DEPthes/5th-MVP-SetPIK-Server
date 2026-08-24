@@ -5,14 +5,17 @@ import com.setpik.server.artist.domain.Artist;
 import com.setpik.server.artist.domain.ArtistAlias;
 import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
 import com.setpik.server.artist.domain.SpotifyArtistAliasSyncStatus;
+import com.setpik.server.artist.domain.SpotifyArtistNameAlias;
 import com.setpik.server.artist.dto.ArtistAliasSyncResponse;
 import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.SpotifyArtistAliasSyncStatusRepository;
+import com.setpik.server.artist.repository.SpotifyArtistNameAliasRepository;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -31,17 +34,20 @@ public class ArtistAliasSyncService {
 	private final ArtistAliasRepository artistAliasRepository;
 	private final WikidataArtistAliasClient wikidataClient;
 	private final SpotifyArtistAliasSyncStatusRepository reverseSyncStatusRepository;
+	private final SpotifyArtistNameAliasRepository nameAliasRepository;
 
 	public ArtistAliasSyncService(
 		ArtistRepository artistRepository,
 		ArtistAliasRepository artistAliasRepository,
 		WikidataArtistAliasClient wikidataClient,
-		SpotifyArtistAliasSyncStatusRepository reverseSyncStatusRepository
+		SpotifyArtistAliasSyncStatusRepository reverseSyncStatusRepository,
+		SpotifyArtistNameAliasRepository nameAliasRepository
 	) {
 		this.artistRepository = artistRepository;
 		this.artistAliasRepository = artistAliasRepository;
 		this.wikidataClient = wikidataClient;
 		this.reverseSyncStatusRepository = reverseSyncStatusRepository;
+		this.nameAliasRepository = nameAliasRepository;
 	}
 
 	public ArtistAliasSyncResponse syncPendingAliases(int requestedLimit) {
@@ -80,11 +86,38 @@ public class ArtistAliasSyncService {
 			String spotifyId = spotifyArtist.getSpotifyArtistId();
 			WikidataArtistAliasClient.ReverseLookupResult result = results.getOrDefault(
 				spotifyId, WikidataArtistAliasClient.ReverseLookupResult.failed());
+			if (result.status() == WikidataArtistAliasClient.Status.RESOLVED) {
+				saveVerifiedNames(candidateId, result);
+			}
 			ArtistAliasResolutionStatus status = resolveReverseAlias(spotifyId, result, attemptedAt);
 			increment(counts, status);
 			reverseSyncStatusRepository.save(SpotifyArtistAliasSyncStatus.of(
 				candidateId, status, result.externalEntityId(), attemptedAt));
 		}
+	}
+
+	private void saveVerifiedNames(Long artistId,
+		WikidataArtistAliasClient.ReverseLookupResult result) {
+		nameAliasRepository.deleteByArtistId(artistId);
+		List<SpotifyArtistNameAlias> aliases = result.koreanNames().stream()
+			.filter(name -> name != null && !name.isBlank())
+			.collect(Collectors.toMap(
+				this::normalizeTitleName,
+				name -> SpotifyArtistNameAlias.wikidata(
+					artistId, name, normalizeTitleName(name), result.externalEntityId()),
+				(left, right) -> left,
+				LinkedHashMap::new
+			))
+			.values().stream().toList();
+		nameAliasRepository.saveAll(aliases);
+	}
+
+	private String normalizeTitleName(String value) {
+		return java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC)
+			.toLowerCase(java.util.Locale.ROOT)
+			.replaceAll("[^\\p{L}\\p{N}]+", " ")
+			.trim()
+			.replaceAll("\\s+", " ");
 	}
 
 	private ArtistAliasResolutionStatus resolveReverseAlias(String spotifyId,
