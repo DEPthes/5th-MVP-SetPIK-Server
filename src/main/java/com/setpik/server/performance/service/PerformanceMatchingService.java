@@ -213,8 +213,8 @@ public class PerformanceMatchingService {
 				selectedBySpotifyId,
 				spotifyAliasByKopisArtistId, artists, genreIdsByArtist, genres, performanceGenreNames
 			);
-			if (matchedArtists.isEmpty() && performanceLineup.isEmpty()) {
-				matchedArtists = matchEmptyLineupByTitle(performance, selectedArtists, artists,
+			if (matchedArtists.isEmpty()) {
+				matchedArtists = matchByTitle(performance, selectedArtists, artists,
 					titleNamesByArtist, genreIdsByArtist, genres, performanceGenreNames);
 				if (!matchedArtists.isEmpty()) {
 					directMatches.add(directCandidate(performance, matchedArtists, 1, true));
@@ -277,7 +277,7 @@ public class PerformanceMatchingService {
 		return result;
 	}
 
-	private List<MatchedArtist> matchEmptyLineupByTitle(
+	private List<MatchedArtist> matchByTitle(
 		Performance performance,
 		List<AnalysisArtist> selectedArtists,
 		Map<Long, Artist> artists,

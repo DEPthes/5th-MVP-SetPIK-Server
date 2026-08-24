@@ -404,6 +404,28 @@ class PerformanceMatchingServiceTest {
 	}
 
 	@Test
+	void createsFirstPriorityGroupMatchFromTitleWhenKopisLineupContainsOnlyMembers() {
+		stubEmptyLineupTitleScenario("AKMU", "AKMU CONCERT: 소문의 낙원", List.of());
+		PerformanceArtist leeChanhyuk = mock(PerformanceArtist.class);
+		when(leeChanhyuk.getPerformanceId()).thenReturn(10L);
+		when(leeChanhyuk.getArtistId()).thenReturn(5548L);
+		PerformanceArtist leeSuhyun = mock(PerformanceArtist.class);
+		when(leeSuhyun.getPerformanceId()).thenReturn(10L);
+		when(leeSuhyun.getArtistId()).thenReturn(502L);
+		when(performanceArtistRepository.findByPerformanceIdIn(List.of(10L)))
+			.thenReturn(List.of(leeChanhyuk, leeSuhyun));
+
+		PerformanceMatchResponse response = service.calculate(1L, 501L, new PerformanceMatchRequest(null, null));
+
+		assertThat(response.matchedPerformanceCount()).isEqualTo(1);
+		ArgumentCaptor<PerformanceMatch> matchCaptor = ArgumentCaptor.forClass(PerformanceMatch.class);
+		verify(performanceMatchRepository).saveAndFlush(matchCaptor.capture());
+		assertThat(matchCaptor.getValue().getMatchPriority()).isEqualTo((byte) 1);
+		assertThat(matchCaptor.getValue().getMatchedArtistCount()).isEqualTo(1);
+		assertThat(matchCaptor.getValue().getMatchRatio()).isEqualTo((byte) 100);
+	}
+
+	@Test
 	void rejectsArtistNameThatOnlyAppearsAsTitleSubstring() {
 		stubEmptyLineupTitleScenario("YENA", "ooyenaoop LIVE", List.of());
 
