@@ -34,6 +34,27 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
 	@Query(value = """
 		select a.artist_id
 		from Artists a
+		left join Spotify_Artist_Alias_Sync_Status sync_status
+		  on sync_status.artist_id = a.artist_id
+		where a.spotify_available = true
+		  and a.spotify_artist_id is not null
+		  and (
+		    sync_status.artist_id is null
+		    or sync_status.resolution_status = 'FAILED'
+		    or (sync_status.resolution_status = 'NOT_FOUND'
+		      and sync_status.last_attempted_at < date_sub(now(), interval 1 day))
+		  )
+		order by case when exists (
+		  select 1 from Analysis_Artists aa
+		  where aa.artist_id = a.artist_id and aa.is_excluded = false
+		) then 0 else 1 end, a.artist_id asc
+		limit :limit
+		""", nativeQuery = true)
+	List<Long> findPendingReverseAliasSyncArtistIds(@Param("limit") int limit);
+
+	@Query(value = """
+		select a.artist_id
+		from Artists a
 		left join Artist_Aliases alias_mapping on alias_mapping.kopis_artist_id = a.artist_id
 		left join Artist_Genre_Sync_Status sync_status on sync_status.artist_id = a.artist_id
 		where (
