@@ -9,13 +9,17 @@ import com.setpik.server.analysis.domain.AnalysisStatus;
 import com.setpik.server.analysis.domain.PlaylistAnalysis;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.domain.ArtistAlias;
+import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.auth.client.SpotifyOAuthClient;
 import com.setpik.server.auth.security.TokenCipher;
 import com.setpik.server.performance.domain.Performance;
 import com.setpik.server.performance.domain.PerformanceArtist;
 import com.setpik.server.performance.domain.PerformanceMatch;
+import com.setpik.server.performance.domain.PerformanceMatchArtist;
 import com.setpik.server.performance.repository.PerformanceArtistRepository;
+import com.setpik.server.performance.repository.PerformanceMatchArtistRepository;
 import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.playlist.client.SpotifyPlaylistClient;
@@ -55,10 +59,12 @@ class PrestudyPlaylistServiceTest {
 	@Mock private PerformanceRepository performanceRepository;
 	@Mock private PerformanceArtistRepository performanceArtistRepository;
 	@Mock private PerformanceMatchRepository performanceMatchRepository;
+	@Mock private PerformanceMatchArtistRepository performanceMatchArtistRepository;
 	@Mock private PlaylistAnalysisRepository playlistAnalysisRepository;
 	@Mock private PlaylistTrackRepository playlistTrackRepository;
 	@Mock private TrackRepository trackRepository;
 	@Mock private ArtistRepository artistRepository;
+	@Mock private ArtistAliasRepository artistAliasRepository;
 	@Mock private TrackArtistRepository trackArtistRepository;
 	@Mock private SpotifyAccountRepository spotifyAccountRepository;
 	@Mock private SpotifyPlaylistClient spotifyPlaylistClient;
@@ -74,8 +80,9 @@ class PrestudyPlaylistServiceTest {
 		service = new PrestudyPlaylistService(
 			prestudyPlaylistRepository, prestudyPlaylistTrackRepository,
 			performanceRepository, performanceArtistRepository, performanceMatchRepository,
+			performanceMatchArtistRepository,
 			playlistAnalysisRepository, playlistTrackRepository, trackRepository,
-			artistRepository, trackArtistRepository, spotifyAccountRepository,
+			artistRepository, artistAliasRepository, trackArtistRepository, spotifyAccountRepository,
 			spotifyPlaylistClient, spotifyOAuthClient, tokenCipher, clock);
 	}
 
@@ -117,9 +124,102 @@ class PrestudyPlaylistServiceTest {
 	}
 
 	@Test
+	void resolvesKopisLineupAliasToOriginalSpotifyArtistTrack() {
+		PlaylistAnalysis analysis = completedAnalysis(1L, 10L);
+		Performance performance = mock(Performance.class);
+		PerformanceMatch match = mock(PerformanceMatch.class);
+		when(match.getMatchId()).thenReturn(900L);
+		Artist kopisArtist = mock(Artist.class);
+		when(kopisArtist.getArtistId()).thenReturn(838L);
+		when(kopisArtist.getArtistName()).thenReturn("최예나");
+		Artist spotifyArtist = mock(Artist.class);
+		when(spotifyArtist.getArtistId()).thenReturn(76L);
+		when(spotifyArtist.getSpotifyArtistId()).thenReturn("spotify-yena");
+		Track originalTrack = mock(Track.class);
+		when(originalTrack.getTrackId()).thenReturn(4001L);
+		when(originalTrack.getTrackName()).thenReturn("YENA Song");
+
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+		when(performanceRepository.findByPerformanceIdAndIsDeletedFalse(1001L))
+			.thenReturn(Optional.of(performance));
+		when(performanceMatchRepository.findByAnalysisIdAndPerformanceId(501L, 1001L))
+			.thenReturn(Optional.of(match));
+		when(performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(1001L))
+			.thenReturn(List.of(new PerformanceArtist(838L, 1001L, 1L, true)));
+		when(artistRepository.findAllById(List.of(838L))).thenReturn(List.of(kopisArtist));
+		when(artistAliasRepository.findByKopisArtistIdIn(List.of(838L))).thenReturn(List.of(
+			ArtistAlias.resolved(838L, "spotify-yena", "WIKIDATA", "Q1", LocalDateTime.now())
+		));
+		when(artistRepository.findBySpotifyArtistIdIn(List.of("spotify-yena")))
+			.thenReturn(List.of(spotifyArtist));
+		when(performanceMatchArtistRepository.findByMatchId(900L)).thenReturn(List.of());
+		when(playlistTrackRepository.findByPlaylistIdOrderByTrackPositionAsc(10L))
+			.thenReturn(List.of(new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now())));
+		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
+			.thenReturn(List.of(new TrackArtist(4001L, 76L, (short) 1)));
+
+		var result = service.getCandidates(1L, 1001L, 501L);
+
+		assertThat(result.artists()).singleElement().satisfies(candidate -> {
+			assertThat(candidate.artistId()).isEqualTo(838L);
+			assertThat(candidate.artistName()).isEqualTo("최예나");
+			assertThat(candidate.isFromOriginalPlaylist()).isTrue();
+			assertThat(candidate.candidateTracks()).singleElement()
+				.satisfies(track -> assertThat(track.trackId()).isEqualTo(4001L));
+		});
+	}
+
+	@Test
+	void usesMatchedSpotifyArtistWhenKopisLineupIsEmpty() {
+		PlaylistAnalysis analysis = completedAnalysis(1L, 10L);
+		Performance performance = mock(Performance.class);
+		PerformanceMatch match = mock(PerformanceMatch.class);
+		when(match.getMatchId()).thenReturn(900L);
+		Artist fromis = mock(Artist.class);
+		when(fromis.getArtistId()).thenReturn(75L);
+		when(fromis.getArtistName()).thenReturn("fromis_9");
+		when(fromis.getSpotifyArtistId()).thenReturn("spotify-fromis");
+		Track originalTrack = mock(Track.class);
+		when(originalTrack.getTrackId()).thenReturn(4001L);
+		when(originalTrack.getTrackName()).thenReturn("fromis Song");
+
+		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
+			.thenReturn(Optional.of(analysis));
+		when(performanceRepository.findByPerformanceIdAndIsDeletedFalse(1001L))
+			.thenReturn(Optional.of(performance));
+		when(performanceMatchRepository.findByAnalysisIdAndPerformanceId(501L, 1001L))
+			.thenReturn(Optional.of(match));
+		when(performanceArtistRepository.findByPerformanceIdOrderByLineupOrderAsc(1001L))
+			.thenReturn(List.of());
+		when(performanceMatchArtistRepository.findByMatchId(900L))
+			.thenReturn(List.of(PerformanceMatchArtist.create(900L, 75L, 6)));
+		when(artistRepository.findAllById(List.of(75L))).thenReturn(List.of(fromis));
+		when(playlistTrackRepository.findByPlaylistIdOrderByTrackPositionAsc(10L))
+			.thenReturn(List.of(new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now())));
+		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
+			.thenReturn(List.of(new TrackArtist(4001L, 75L, (short) 1)));
+
+		var result = service.getCandidates(1L, 1001L, 501L);
+
+		assertThat(result.artists()).singleElement().satisfies(candidate -> {
+			assertThat(candidate.artistId()).isEqualTo(75L);
+			assertThat(candidate.artistName()).isEqualTo("fromis_9");
+			assertThat(candidate.candidateTracks()).singleElement()
+				.satisfies(track -> assertThat(track.trackId()).isEqualTo(4001L));
+		});
+	}
+
+	@Test
 	void storesActualSourceTypeAndTrackOrderWhenCreatingPlaylist() {
 		PlaylistAnalysis analysis = completedAnalysis(1L, 10L);
 		Performance performance = mock(Performance.class);
+		Artist artistA = mock(Artist.class);
+		Artist artistB = mock(Artist.class);
+		when(artistA.getArtistId()).thenReturn(7L);
+		when(artistB.getArtistId()).thenReturn(9L);
 		Track originalTrack = mock(Track.class);
 		Track matchedTrack = mock(Track.class);
 		when(originalTrack.getTrackId()).thenReturn(4001L);
@@ -137,6 +237,7 @@ class PrestudyPlaylistServiceTest {
 			.thenReturn(List.of(
 				new PerformanceArtist(7L, 1001L, 1L, true),
 				new PerformanceArtist(9L, 1001L, 2L, false)));
+		when(artistRepository.findAllById(List.of(7L, 9L))).thenReturn(List.of(artistA, artistB));
 		when(playlistTrackRepository.findByPlaylistIdOrderByTrackPositionAsc(10L))
 			.thenReturn(List.of(new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now())));
 		when(trackRepository.findAllById(List.of(4001L, 4002L)))
