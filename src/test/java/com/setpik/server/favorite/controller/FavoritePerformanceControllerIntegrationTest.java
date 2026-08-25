@@ -140,6 +140,27 @@ class FavoritePerformanceControllerIntegrationTest {
 	}
 
 	@Test
+	void returnsZeroMatchedArtistCountWhenUserHasNoPlaylistAnalysis() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User newUser = userRepository.saveAndFlush(User.createActive(now));
+		Venue venue = venueRepository.saveAndFlush(new Venue(
+			"favorite-no-analysis-venue", "테스트 공연장", "서울", null, null, null, null));
+		Performance performance = performanceRepository.saveAndFlush(performance(
+			"favorite-no-analysis-performance", "No Analysis Festival", "poster.jpg",
+			LocalDate.of(2026, 9, 1), venue.getVenueId(), now));
+		favoriteRepository.saveAndFlush(new FavoritePerformance(
+			newUser.getUserId(), performance.getPerformanceId(), now));
+
+		mockMvc.perform(get("/api/v1/favorites")
+				.param("page", "0")
+				.param("size", "10")
+				.header(HttpHeaders.AUTHORIZATION, bearerToken(newUser.getUserId())))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.content[0].performanceId").value(performance.getPerformanceId()))
+			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(0));
+	}
+
+	@Test
 	void createsFavoriteRejectsDuplicateAndRestoresDeletedFavorite() throws Exception {
 		LocalDateTime now = LocalDateTime.now();
 		User user = userRepository.saveAndFlush(User.createActive(now));
