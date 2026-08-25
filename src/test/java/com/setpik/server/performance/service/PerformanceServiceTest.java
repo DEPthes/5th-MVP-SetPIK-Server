@@ -298,4 +298,103 @@ class PerformanceServiceTest {
 			.isInstanceOfSatisfying(BusinessException.class,
 				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
 	}
+
+	@Test
+	void browsesPerformancesWithRecommendationScoreFromLatestCompletedAnalysis() {
+		com.setpik.server.analysis.domain.PlaylistAnalysis analysis =
+			mock(com.setpik.server.analysis.domain.PlaylistAnalysis.class);
+		when(analysis.getAnalysisId()).thenReturn(501L);
+		when(playlistAnalysisRepository.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+			1L, com.setpik.server.analysis.domain.AnalysisStatus.COMPLETED))
+			.thenReturn(Optional.of(analysis));
+
+		Performance matchedPerformance = mock(Performance.class);
+		when(matchedPerformance.getPerformanceId()).thenReturn(1001L);
+		when(matchedPerformance.getVenueId()).thenReturn(77L);
+		when(matchedPerformance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
+		Performance unmatchedPerformance = mock(Performance.class);
+		when(unmatchedPerformance.getPerformanceId()).thenReturn(1002L);
+		when(unmatchedPerformance.getVenueId()).thenReturn(78L);
+		when(unmatchedPerformance.getPerformanceStatus()).thenReturn(PerformanceStatus.SCHEDULED);
+		when(performanceRepository.searchOrderedByRecommendation(
+			any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.eq(501L), any()))
+			.thenReturn(new PageImpl<>(List.of(matchedPerformance, unmatchedPerformance), PageRequest.of(0, 20), 2));
+		when(venueRepository.findAllById(any())).thenReturn(List.of());
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(any())).thenReturn(Map.of());
+		when(performanceMetadataLookupService.artistNamesByPerformanceId(any())).thenReturn(Map.of());
+
+		PerformanceMatch match = mock(PerformanceMatch.class);
+		when(match.getPerformanceId()).thenReturn(1001L);
+		when(match.getMatchPriority()).thenReturn((byte) 2);
+		when(match.getMatchedArtistCount()).thenReturn(3);
+		when(performanceMatchRepository.findByAnalysisIdAndPerformanceIdIn(501L, List.of(1001L, 1002L)))
+			.thenReturn(List.of(match));
+
+		PageResponse<com.setpik.server.performance.dto.PerformanceBrowseResponse> result =
+			service.browsePerformances(1L, "festival", null, null, null, null, 0, 20, "recommended,desc");
+
+		assertThat(result.content()).hasSize(2);
+		assertThat(result.content().get(0).performanceId()).isEqualTo(1001L);
+		assertThat(result.content().get(0).recommendationScore()).isEqualTo(2003);
+		assertThat(result.content().get(1).performanceId()).isEqualTo(1002L);
+		assertThat(result.content().get(1).recommendationScore()).isEqualTo(0);
+	}
+
+	@Test
+	void browsesPerformancesWithNullRecommendationScoreWhenNoCompletedAnalysisExists() {
+		when(playlistAnalysisRepository.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+			1L, com.setpik.server.analysis.domain.AnalysisStatus.COMPLETED))
+			.thenReturn(Optional.empty());
+
+		Performance performance = mock(Performance.class);
+		when(performance.getPerformanceId()).thenReturn(1001L);
+		when(performance.getVenueId()).thenReturn(77L);
+		when(performance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
+		when(performanceRepository.searchOrderedByRecommendation(
+			any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.isNull(), any()))
+			.thenReturn(new PageImpl<>(List.of(performance), PageRequest.of(0, 20), 1));
+		when(venueRepository.findAllById(any())).thenReturn(List.of());
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(any())).thenReturn(Map.of());
+		when(performanceMetadataLookupService.artistNamesByPerformanceId(any())).thenReturn(Map.of());
+
+		PageResponse<com.setpik.server.performance.dto.PerformanceBrowseResponse> result =
+			service.browsePerformances(1L, null, null, null, null, null, 0, 20, "recommended,desc");
+
+		assertThat(result.content()).singleElement().satisfies(response ->
+			assertThat(response.recommendationScore()).isNull());
+	}
+
+	@Test
+	void browsesPerformancesSortedByStartDateUsingQualifiedSortProperty() {
+		when(playlistAnalysisRepository.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+			1L, com.setpik.server.analysis.domain.AnalysisStatus.COMPLETED))
+			.thenReturn(Optional.empty());
+		when(performanceRepository.search(any(), any(), any(), any(), any(), any()))
+			.thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+		service.browsePerformances(1L, null, null, null, null, null, 0, 20, "startDate,asc");
+
+		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+		org.mockito.Mockito.verify(performanceRepository)
+			.search(any(), any(), any(), any(), any(), pageableCaptor.capture());
+		assertThat(pageableCaptor.getValue().getSort().getOrderFor("performance.startDate"))
+			.extracting(Sort.Order::getDirection)
+			.isEqualTo(Sort.Direction.ASC);
+	}
+
+	@Test
+	void rejectsUnsupportedBrowseSortField() {
+		assertThatThrownBy(() -> service.browsePerformances(
+			1L, null, null, null, null, null, 0, 20, "unknown,asc"))
+			.isInstanceOfSatisfying(BusinessException.class,
+				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void rejectsAscendingDirectionForRecommendedSort() {
+		assertThatThrownBy(() -> service.browsePerformances(
+			1L, null, null, null, null, null, 0, 20, "recommended,asc"))
+			.isInstanceOfSatisfying(BusinessException.class,
+				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
 }

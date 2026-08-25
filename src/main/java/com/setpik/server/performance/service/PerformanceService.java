@@ -1,5 +1,7 @@
 package com.setpik.server.performance.service;
 
+import com.setpik.server.analysis.domain.AnalysisStatus;
+import com.setpik.server.analysis.domain.PlaylistAnalysis;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.artist.domain.Artist;
 import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
@@ -14,6 +16,7 @@ import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.domain.PerformanceMatchArtist;
 import com.setpik.server.performance.domain.Venue;
 import com.setpik.server.performance.dto.MatchedArtistResponse;
+import com.setpik.server.performance.dto.PerformanceBrowseResponse;
 import com.setpik.server.performance.dto.PerformanceDetailResponse;
 import com.setpik.server.performance.dto.PerformanceRecommendationResponse;
 import com.setpik.server.performance.dto.TicketScheduleResponse;
@@ -23,6 +26,7 @@ import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.TicketScheduleRepository;
 import com.setpik.server.performance.repository.VenueRepository;
+import java.time.LocalDate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.Set;
@@ -41,6 +46,9 @@ import java.util.Set;
 public class PerformanceService {
 	private static final Set<String> RECOMMENDATION_SORT_FIELDS = Set.of(
 		"matchPriority", "matchedArtistCount", "matchRatio", "calculatedAt"
+	);
+	private static final Set<String> BROWSE_SORT_FIELDS = Set.of(
+		"recommended", "startDate", "performanceName", "minTicketPrice"
 	);
 
 	private final PerformanceRepository performanceRepository;
@@ -174,6 +182,98 @@ public class PerformanceService {
 			.toList();
 
 		return PageResponse.of(content, matches);
+	}
+
+	public PageResponse<PerformanceBrowseResponse> browsePerformances(
+		Long userId,
+		String keyword,
+		String performanceType,
+		String region,
+		LocalDate fromDate,
+		LocalDate toDate,
+		int page,
+		int size,
+		String sort
+	) {
+		String[] sortParts = parseBrowseSort(sort);
+		String keywordPattern = keyword == null || keyword.isBlank() ? null : "%" + keyword.trim() + "%";
+		String normalizedType = performanceType == null || performanceType.isBlank() ? null : performanceType;
+		String normalizedRegion = region == null || region.isBlank() ? null : region;
+
+		Optional<PlaylistAnalysis> latestAnalysis = playlistAnalysisRepository
+			.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(userId, AnalysisStatus.COMPLETED);
+		Long analysisId = latestAnalysis.map(PlaylistAnalysis::getAnalysisId).orElse(null);
+
+		Page<Performance> performances;
+		if ("recommended".equals(sortParts[0])) {
+			performances = performanceRepository.searchOrderedByRecommendation(
+				keywordPattern, normalizedType, normalizedRegion, fromDate, toDate,
+				analysisId, PageRequest.of(page, size));
+		} else {
+			Pageable pageable = PageRequest.of(page, size,
+				Sort.by(Sort.Direction.fromString(sortParts[1]), "performance." + sortParts[0]));
+			performances = performanceRepository.search(
+				keywordPattern, normalizedType, normalizedRegion, fromDate, toDate, pageable);
+		}
+
+		List<Long> performanceIds = performances.getContent().stream()
+			.map(Performance::getPerformanceId).distinct().toList();
+		Map<Long, Venue> venueById = venueRepository
+			.findAllById(performances.getContent().stream().map(Performance::getVenueId).distinct().toList())
+			.stream()
+			.collect(Collectors.toMap(Venue::getVenueId, Function.identity()));
+		Map<Long, String> performanceTypeByPerformanceId =
+			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
+		Map<Long, List<String>> artistNamesByPerformanceId =
+			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, Integer> recommendationScoreByPerformanceId = analysisId == null
+			? Map.of()
+			: performanceMatchRepository.findByAnalysisIdAndPerformanceIdIn(analysisId, performanceIds).stream()
+				.collect(Collectors.toMap(PerformanceMatch::getPerformanceId, PerformanceService::recommendationScore));
+
+		List<PerformanceBrowseResponse> content = performances.getContent().stream()
+			.map(performance -> PerformanceBrowseResponse.of(
+				performance,
+				venueById.get(performance.getVenueId()),
+				performanceTypeByPerformanceId.get(performance.getPerformanceId()),
+				artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
+				analysisId == null
+					? null
+					: recommendationScoreByPerformanceId.getOrDefault(performance.getPerformanceId(), 0)
+			))
+			.toList();
+
+		return PageResponse.of(content, performances);
+	}
+
+	/**
+	 * matchPriority(1=단독/2=부분매치/3=장르호환)와 matchedArtistCount를 하나의 정수 점수로 합쳐
+	 * sort=recommended 정렬 및 응답 노출에 함께 사용한다. 매치가 없으면 0점.
+	 */
+	private static Integer recommendationScore(PerformanceMatch match) {
+		if (match.getMatchPriority() == null) return 0;
+		return switch (match.getMatchPriority()) {
+			case 1 -> 3000;
+			case 2 -> 2000 + (match.getMatchedArtistCount() == null ? 0 : match.getMatchedArtistCount());
+			case 3 -> 1000;
+			default -> 0;
+		};
+	}
+
+	private String[] parseBrowseSort(String sort) {
+		String[] parts = sort == null ? new String[0] : sort.trim().split(",", -1);
+		if (parts.length != 2 || !BROWSE_SORT_FIELDS.contains(parts[0])) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
+		try {
+			Sort.Direction direction = Sort.Direction.fromString(parts[1]);
+			if ("recommended".equals(parts[0]) && direction != Sort.Direction.DESC) {
+				throw new BusinessException(ErrorCode.INVALID_REQUEST);
+			}
+		} catch (IllegalArgumentException exception) {
+			throw new BusinessException(ErrorCode.INVALID_REQUEST);
+		}
+		return parts;
 	}
 
 	private Sort recommendationSort(String sort) {
