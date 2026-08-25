@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.common.storage.NoOpImageStorageClient;
+import com.setpik.server.common.storage.S3StorageProperties;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.dto.ProfileImageResponse;
 import com.setpik.server.member.dto.UpdateUserProfileRequest;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 class UserProfileServiceTest {
+	private static final String DEFAULT_PROFILE_IMAGE_URL =
+		"https://d23ywix9e5rzc2.cloudfront.net/default-profile.png";
 
 	private UserRepository userRepository;
 	private SpotifyAccountRepository spotifyAccountRepository;
@@ -33,7 +36,14 @@ class UserProfileServiceTest {
 		userRepository = mock(UserRepository.class);
 		spotifyAccountRepository = mock(SpotifyAccountRepository.class);
 		userProfileService = new UserProfileService(
-			userRepository, spotifyAccountRepository, new NoOpImageStorageClient());
+			userRepository,
+			spotifyAccountRepository,
+			new NoOpImageStorageClient(),
+			new S3StorageProperties(
+				"ap-northeast-2",
+				"setpik-profile-images",
+				"https://d23ywix9e5rzc2.cloudfront.net",
+				DEFAULT_PROFILE_IMAGE_URL));
 	}
 
 	@Test
@@ -135,7 +145,7 @@ class UserProfileServiceTest {
 
 		ProfileImageResponse response = userProfileService.resetProfileImage(1L);
 
-		assertThat(response.profileImageUrl()).isNull();
+		assertThat(response.profileImageUrl()).isEqualTo(DEFAULT_PROFILE_IMAGE_URL);
 		assertThat(user.getProfileImageUrl()).isNull();
 	}
 }
