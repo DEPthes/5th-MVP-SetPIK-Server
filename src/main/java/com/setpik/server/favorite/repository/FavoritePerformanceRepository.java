@@ -28,6 +28,9 @@ public interface FavoritePerformanceRepository extends JpaRepository<FavoritePer
 				performance.posterUrl,
 				performance.startDate,
 				venue.venueName,
+				performance.performanceStatus,
+				performance.priceType,
+				performance.ticketPriceText,
 				favorite.savedAt
 			)
 			from FavoritePerformance favorite

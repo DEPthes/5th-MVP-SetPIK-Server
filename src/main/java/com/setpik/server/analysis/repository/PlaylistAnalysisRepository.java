@@ -10,6 +10,7 @@ public interface PlaylistAnalysisRepository extends JpaRepository<PlaylistAnalys
 	Optional<PlaylistAnalysis> findByAnalysisIdAndUserId(Long analysisId, Long userId);
 	Optional<PlaylistAnalysis> findFirstByPlaylistIdAndUserIdOrderByAnalyzedAtDescAnalysisIdDesc(
 		Long playlistId, Long userId);
+	Optional<PlaylistAnalysis> findFirstByUserIdOrderByAnalyzedAtDescAnalysisIdDesc(Long userId);
 
 	boolean existsByAnalysisIdAndUserId(Long analysisId, Long userId);
 }

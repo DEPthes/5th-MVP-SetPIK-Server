@@ -7,16 +7,31 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.setpik.server.analysis.domain.AnalysisStatus;
+import com.setpik.server.analysis.domain.PlaylistAnalysis;
+import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
+import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.auth.security.JwtAccessTokenProvider;
 import com.setpik.server.favorite.domain.FavoritePerformance;
 import com.setpik.server.favorite.repository.FavoritePerformanceRepository;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.repository.UserRepository;
 import com.setpik.server.performance.domain.Performance;
+import com.setpik.server.performance.domain.PerformanceArtist;
+import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.domain.PerformanceStatus;
+import com.setpik.server.performance.domain.PerformanceType;
+import com.setpik.server.performance.domain.PerformanceTypeMap;
 import com.setpik.server.performance.domain.Venue;
+import com.setpik.server.performance.repository.PerformanceArtistRepository;
+import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
+import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import com.setpik.server.performance.repository.VenueRepository;
+import com.setpik.server.playlist.domain.SpotifyPlaylist;
+import com.setpik.server.playlist.repository.SpotifyPlaylistRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -40,6 +55,13 @@ class FavoritePerformanceControllerIntegrationTest {
 	@Autowired private VenueRepository venueRepository;
 	@Autowired private PerformanceRepository performanceRepository;
 	@Autowired private FavoritePerformanceRepository favoriteRepository;
+	@Autowired private SpotifyPlaylistRepository playlistRepository;
+	@Autowired private PlaylistAnalysisRepository analysisRepository;
+	@Autowired private PerformanceMatchRepository performanceMatchRepository;
+	@Autowired private PerformanceArtistRepository performanceArtistRepository;
+	@Autowired private ArtistRepository artistRepository;
+	@Autowired private PerformanceTypeRepository performanceTypeRepository;
+	@Autowired private PerformanceTypeMapRepository performanceTypeMapRepository;
 	@Autowired private JwtAccessTokenProvider accessTokenProvider;
 
 	@Test
@@ -54,7 +76,7 @@ class FavoritePerformanceControllerIntegrationTest {
 			LocalDate.of(2026, 8, 15), venue.getVenueId(), now));
 		Performance latestPerformance = performanceRepository.saveAndFlush(performance(
 			"favorite-performance-latest", "Latest Festival", "latest.jpg",
-			LocalDate.of(2026, 9, 1), venue.getVenueId(), now));
+			LocalDate.of(2026, 9, 1), venue.getVenueId(), now, "R석 50,000원 / S석 30,000원"));
 		Performance deletedPerformance = performanceRepository.saveAndFlush(performance(
 			"favorite-performance-deleted", "Deleted Favorite Festival", "deleted.jpg",
 			LocalDate.of(2026, 10, 1), venue.getVenueId(), now));
@@ -68,6 +90,26 @@ class FavoritePerformanceControllerIntegrationTest {
 		deletedFavorite.delete(now.plusMinutes(2));
 		favoriteRepository.saveAndFlush(new FavoritePerformance(
 			otherUser.getUserId(), latestPerformance.getPerformanceId(), now.plusMinutes(3)));
+
+		PerformanceType festivalType = performanceTypeRepository.saveAndFlush(
+			new PerformanceType("FESTIVAL", "페스티벌"));
+		performanceTypeMapRepository.saveAndFlush(
+			new PerformanceTypeMap(latestPerformance.getPerformanceId(), festivalType.getPerformanceTypeId()));
+		Artist headliner = artistRepository.saveAndFlush(Artist.fromKopis("Headliner Artist"));
+		performanceArtistRepository.saveAndFlush(
+			new PerformanceArtist(headliner.getArtistId(), latestPerformance.getPerformanceId(), 1L, true));
+
+		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-favorite-match", "Favorite Match Playlist", null, null, false,
+			"spotify-owner", "snapshot-favorite-match", 1, user.getUserId()));
+		PlaylistAnalysis analysis = analysisRepository.saveAndFlush(new PlaylistAnalysis(
+			user.getUserId(), playlist.getPlaylistId(), playlist.getSpotifyPlaylistId(),
+			playlist.getPlaylistName(), playlist.getCoverImageUrl(), 1, 1,
+			AnalysisStatus.COMPLETED, null));
+		performanceMatchRepository.saveAndFlush(PerformanceMatch.create(
+			(byte) 2, 2, 3, (byte) 66,
+			"플레이리스트 속 아티스트 2팀이 이 공연에 출연합니다.",
+			now, latestPerformance.getPerformanceId(), analysis.getAnalysisId(), null));
 
 		mockMvc.perform(get("/api/v1/favorites")
 				.param("page", "0")
@@ -84,6 +126,11 @@ class FavoritePerformanceControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].posterUrl").value("latest.jpg"))
 			.andExpect(jsonPath("$.result.content[0].startDate").value("2026-09-01"))
 			.andExpect(jsonPath("$.result.content[0].venueName").value("송도달빛축제공원"))
+			.andExpect(jsonPath("$.result.content[0].performanceType").value("FESTIVAL"))
+			.andExpect(jsonPath("$.result.content[0].performanceStatus").value("SCHEDULED"))
+			.andExpect(jsonPath("$.result.content[0].artistNames[0]").value("Headliner Artist"))
+			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(2))
+			.andExpect(jsonPath("$.result.content[0].minTicketPrice").value(30000))
 			.andExpect(jsonPath("$.result.content[0].savedAt", endsWith("+09:00")))
 			.andExpect(jsonPath("$.result.page").value(0))
 			.andExpect(jsonPath("$.result.size").value(1))
@@ -251,9 +298,21 @@ class FavoritePerformanceControllerIntegrationTest {
 		Long venueId,
 		LocalDateTime syncedAt
 	) {
+		return performance(kopisId, name, posterUrl, startDate, venueId, syncedAt, null);
+	}
+
+	private Performance performance(
+		String kopisId,
+		String name,
+		String posterUrl,
+		LocalDate startDate,
+		Long venueId,
+		LocalDateTime syncedAt,
+		String ticketPriceText
+	) {
 		return new Performance(
 			kopisId, name, startDate, startDate.plusDays(1), posterUrl, null,
-			PerformanceStatus.SCHEDULED, "PAID", null, syncedAt, venueId);
+			PerformanceStatus.SCHEDULED, "PAID", ticketPriceText, syncedAt, venueId);
 	}
 
 	private String bearerToken(Long userId) {

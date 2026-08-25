@@ -48,6 +48,8 @@ public interface PerformanceMatchRepository extends JpaRepository<PerformanceMat
 
 	List<PerformanceMatch> findAllByAnalysisId(Long analysisId);
 
+	List<PerformanceMatch> findByAnalysisIdAndPerformanceIdIn(Long analysisId, List<Long> performanceIds);
+
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
 	@Query("delete from PerformanceMatch match where match.analysisId = :analysisId")
 	void deleteAllByAnalysisId(@Param("analysisId") Long analysisId);
