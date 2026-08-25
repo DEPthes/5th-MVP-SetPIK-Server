@@ -161,6 +161,45 @@ class FavoritePerformanceControllerIntegrationTest {
 	}
 
 	@Test
+	void ignoresFailedLatestAnalysisAndUsesPreviousCompletedAnalysisForMatchedArtistCount() throws Exception {
+		LocalDateTime now = LocalDateTime.now();
+		User user = userRepository.saveAndFlush(User.createActive(now));
+		Venue venue = venueRepository.saveAndFlush(new Venue(
+			"favorite-failed-analysis-venue", "테스트 공연장", "서울", null, null, null, null));
+		Performance performance = performanceRepository.saveAndFlush(performance(
+			"favorite-failed-analysis-performance", "Failed Analysis Festival", "poster.jpg",
+			LocalDate.of(2026, 9, 1), venue.getVenueId(), now));
+		favoriteRepository.saveAndFlush(new FavoritePerformance(
+			user.getUserId(), performance.getPerformanceId(), now));
+
+		SpotifyPlaylist playlist = playlistRepository.saveAndFlush(new SpotifyPlaylist(
+			"spotify-failed-analysis", "Failed Analysis Playlist", null, null, false,
+			"spotify-owner", "snapshot-failed-analysis", 1, user.getUserId()));
+		PlaylistAnalysis completedAnalysis = analysisRepository.saveAndFlush(new PlaylistAnalysis(
+			user.getUserId(), playlist.getPlaylistId(), playlist.getSpotifyPlaylistId(),
+			playlist.getPlaylistName(), playlist.getCoverImageUrl(), 1, 1,
+			AnalysisStatus.COMPLETED, null));
+		performanceMatchRepository.saveAndFlush(PerformanceMatch.create(
+			(byte) 2, 2, 3, (byte) 66,
+			"플레이리스트 속 아티스트 2팀이 이 공연에 출연합니다.",
+			now, performance.getPerformanceId(), completedAnalysis.getAnalysisId(), null));
+
+		// COMPLETED 분석보다 나중에 생성된 FAILED 분석이 최신 분석 판정에서 제외되어야 한다.
+		analysisRepository.saveAndFlush(new PlaylistAnalysis(
+			user.getUserId(), playlist.getPlaylistId(), playlist.getSpotifyPlaylistId(),
+			playlist.getPlaylistName(), playlist.getCoverImageUrl(), 1, 1,
+			AnalysisStatus.FAILED, "분석 실패"));
+
+		mockMvc.perform(get("/api/v1/favorites")
+				.param("page", "0")
+				.param("size", "10")
+				.header(HttpHeaders.AUTHORIZATION, bearerToken(user.getUserId())))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.content[0].performanceId").value(performance.getPerformanceId()))
+			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(2));
+	}
+
+	@Test
 	void createsFavoriteRejectsDuplicateAndRestoresDeletedFavorite() throws Exception {
 		LocalDateTime now = LocalDateTime.now();
 		User user = userRepository.saveAndFlush(User.createActive(now));

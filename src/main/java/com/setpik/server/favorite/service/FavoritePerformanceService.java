@@ -1,5 +1,6 @@
 package com.setpik.server.favorite.service;
 
+import com.setpik.server.analysis.domain.AnalysisStatus;
 import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.common.api.PageResponse;
 import com.setpik.server.favorite.dto.FavoritePerformanceResponse;
@@ -77,10 +78,12 @@ public class FavoritePerformanceService {
 		return PageResponse.of(content, page);
 	}
 
-	/** 사용자의 최신 분석(analyzedAt 기준) 1건과 매칭된 아티스트 수만 사용한다. */
+	/** 사용자의 최신 COMPLETED 분석(analyzedAt 기준) 1건과 매칭된 아티스트 수만 사용한다. */
 	private Map<Long, Integer> matchedArtistCountsForLatestAnalysis(Long userId, List<Long> performanceIds) {
 		if (performanceIds.isEmpty()) return Map.of();
-		return playlistAnalysisRepository.findFirstByUserIdOrderByAnalyzedAtDescAnalysisIdDesc(userId)
+		return playlistAnalysisRepository
+			.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+				userId, AnalysisStatus.COMPLETED)
 			.map(analysis -> performanceMatchRepository
 				.findByAnalysisIdAndPerformanceIdIn(analysis.getAnalysisId(), performanceIds).stream()
 				.collect(Collectors.toMap(
