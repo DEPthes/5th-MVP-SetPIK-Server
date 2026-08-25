@@ -125,7 +125,7 @@ public class SpotifyAccount {
 		this.connectionStatus = ConnectionStatus.CONNECTED;
 	}
 
-	/** 탈퇴한 회원의 Spotify 연결을 끊고 저장된 인증 정보를 제거한다. */
+	/** Spotify 연결을 끊고 저장된 인증 정보를 제거한다. */
 	public void disconnect(LocalDateTime disconnectedAt) {
 		this.accessTokenEncrypted = null;
 		this.refreshTokenEncrypted = null;
