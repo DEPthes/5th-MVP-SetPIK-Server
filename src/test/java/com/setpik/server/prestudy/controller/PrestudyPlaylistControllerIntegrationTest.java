@@ -107,7 +107,11 @@ class PrestudyPlaylistControllerIntegrationTest {
 				false, 15, "COMPLETED", createdAt, false));
 		when(prestudyPlaylistService.getPrestudyPlaylistTracks(1L, 701L))
 			.thenReturn(List.of(new PrestudyPlaylistTrackResponse(
-				4001L, "Song A", 1, "ORIGINAL_PLAYLIST", false)));
+				4001L, "Song A", "Artist A, Artist B", "Album A",
+				"https://image.example.com/album-a.jpg", 180000,
+				"spotify-track-4001", "https://open.spotify.com/track/spotify-track-4001",
+				"https://preview.example.com/4001.mp3",
+				1, "ORIGINAL_PLAYLIST", false)));
 
 		mockMvc.perform(get("/api/v1/prestudy-playlists")
 				.param("page", "0").param("size", "20").param("sort", "createdAt,desc")
@@ -137,6 +141,16 @@ class PrestudyPlaylistControllerIntegrationTest {
 				.header(HttpHeaders.AUTHORIZATION, bearerToken(1L)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.result[0].trackId").value(4001))
+			.andExpect(jsonPath("$.result[0].artistName").value("Artist A, Artist B"))
+			.andExpect(jsonPath("$.result[0].albumName").value("Album A"))
+			.andExpect(jsonPath("$.result[0].albumImageUrl")
+				.value("https://image.example.com/album-a.jpg"))
+			.andExpect(jsonPath("$.result[0].durationMs").value(180000))
+			.andExpect(jsonPath("$.result[0].spotifyTrackId").value("spotify-track-4001"))
+			.andExpect(jsonPath("$.result[0].spotifyTrackUrl")
+				.value("https://open.spotify.com/track/spotify-track-4001"))
+			.andExpect(jsonPath("$.result[0].previewUrl")
+				.value("https://preview.example.com/4001.mp3"))
 			.andExpect(jsonPath("$.result[0].trackOrder").value(1))
 			.andExpect(jsonPath("$.result[0].sourceType").value("ORIGINAL_PLAYLIST"))
 			.andExpect(jsonPath("$.result[0].isNewArtistTrack").value(false));

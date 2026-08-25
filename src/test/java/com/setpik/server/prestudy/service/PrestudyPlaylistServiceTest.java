@@ -33,6 +33,7 @@ import com.setpik.server.prestudy.domain.PrestudyPlaylist;
 import com.setpik.server.prestudy.domain.PrestudyPlaylistTrack;
 import com.setpik.server.prestudy.domain.SourceType;
 import com.setpik.server.prestudy.dto.CreatePrestudyPlaylistRequest;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistTrackResponse;
 import com.setpik.server.prestudy.repository.PrestudyPlaylistRepository;
 import com.setpik.server.prestudy.repository.PrestudyPlaylistTrackRepository;
 import com.setpik.server.spotify.domain.ConnectionStatus;
@@ -84,6 +85,58 @@ class PrestudyPlaylistServiceTest {
 			playlistAnalysisRepository, playlistTrackRepository, trackRepository,
 			artistRepository, artistAliasRepository, trackArtistRepository, spotifyAccountRepository,
 			spotifyPlaylistClient, spotifyOAuthClient, tokenCipher, clock);
+	}
+
+	@Test
+	void returnsTrackDisplayMetadataAndOrderedArtistNames() {
+		PrestudyPlaylist playlist = mock(PrestudyPlaylist.class);
+		PrestudyPlaylistTrack playlistTrack = new PrestudyPlaylistTrack(
+			701L, 4001L, 1, SourceType.ORIGINAL_PLAYLIST, false);
+		Track track = mock(Track.class);
+		Artist firstArtist = mock(Artist.class);
+		Artist secondArtist = mock(Artist.class);
+
+		when(track.getTrackId()).thenReturn(4001L);
+		when(track.getTrackName()).thenReturn("Song A");
+		when(track.getAlbumName()).thenReturn("Album A");
+		when(track.getAlbumImageUrl()).thenReturn("https://image.example.com/album-a.jpg");
+		when(track.getDurationMs()).thenReturn(180000);
+		when(track.getSpotifyTrackId()).thenReturn("spotify-track-4001");
+		when(track.getSpotifyTrackUrl())
+			.thenReturn("https://open.spotify.com/track/spotify-track-4001");
+		when(track.getPreviewUrl()).thenReturn("https://preview.example.com/4001.mp3");
+		when(firstArtist.getArtistId()).thenReturn(11L);
+		when(firstArtist.getArtistName()).thenReturn("Artist A");
+		when(secondArtist.getArtistId()).thenReturn(12L);
+		when(secondArtist.getArtistName()).thenReturn("Artist B");
+
+		when(prestudyPlaylistRepository.findByPrestudyPlaylistIdAndUserId(701L, 1L))
+			.thenReturn(Optional.of(playlist));
+		when(prestudyPlaylistTrackRepository.findByPrestudyPlaylistIdOrderByTrackOrderAsc(701L))
+			.thenReturn(List.of(playlistTrack));
+		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(track));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
+			.thenReturn(List.of(
+				new TrackArtist(4001L, 11L, (short)1),
+				new TrackArtist(4001L, 12L, (short)2)));
+		when(artistRepository.findAllById(List.of(11L, 12L)))
+			.thenReturn(List.of(firstArtist, secondArtist));
+
+		List<PrestudyPlaylistTrackResponse> result = service.getPrestudyPlaylistTracks(1L, 701L);
+
+		assertThat(result).singleElement().satisfies(response -> {
+			assertThat(response.trackId()).isEqualTo(4001L);
+			assertThat(response.trackName()).isEqualTo("Song A");
+			assertThat(response.artistName()).isEqualTo("Artist A, Artist B");
+			assertThat(response.albumName()).isEqualTo("Album A");
+			assertThat(response.albumImageUrl())
+				.isEqualTo("https://image.example.com/album-a.jpg");
+			assertThat(response.durationMs()).isEqualTo(180000);
+			assertThat(response.spotifyTrackId()).isEqualTo("spotify-track-4001");
+			assertThat(response.spotifyTrackUrl())
+				.isEqualTo("https://open.spotify.com/track/spotify-track-4001");
+			assertThat(response.previewUrl()).isEqualTo("https://preview.example.com/4001.mp3");
+		});
 	}
 
 	@Test
