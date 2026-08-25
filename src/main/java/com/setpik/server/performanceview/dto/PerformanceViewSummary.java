@@ -1,5 +1,6 @@
 package com.setpik.server.performanceview.dto;
 
+import com.setpik.server.performance.domain.PerformanceStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -11,6 +12,7 @@ public record PerformanceViewSummary(
 	String posterUrl,
 	LocalDate startDate,
 	String venueName,
+	PerformanceStatus performanceStatus,
 	Long analysisId,
 	Integer matchedArtistCount,
 	LocalDateTime viewedAt

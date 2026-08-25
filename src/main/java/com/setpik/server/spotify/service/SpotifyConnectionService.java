@@ -11,6 +11,8 @@ import com.setpik.server.spotify.dto.SpotifyConnectionResponse;
 import com.setpik.server.spotify.dto.SpotifyScopeResponse;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
 import com.setpik.server.spotify.repository.SpotifyAccountScopeRepository;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -23,15 +25,18 @@ public class SpotifyConnectionService {
 	private final UserRepository userRepository;
 	private final SpotifyAccountRepository spotifyAccountRepository;
 	private final SpotifyAccountScopeRepository spotifyAccountScopeRepository;
+	private final Clock clock;
 
 	public SpotifyConnectionService(
 		UserRepository userRepository,
 		SpotifyAccountRepository spotifyAccountRepository,
-		SpotifyAccountScopeRepository spotifyAccountScopeRepository
+		SpotifyAccountScopeRepository spotifyAccountScopeRepository,
+		Clock clock
 	) {
 		this.userRepository = userRepository;
 		this.spotifyAccountRepository = spotifyAccountRepository;
 		this.spotifyAccountScopeRepository = spotifyAccountScopeRepository;
+		this.clock = clock;
 	}
 
 	/** 인증된 회원의 Spotify 연결 상태와 현재 저장된 scope를 조회한다. */
@@ -44,8 +49,32 @@ public class SpotifyConnectionService {
 		}
 
 		return spotifyAccountRepository.findByUserId(userId)
+			.filter(account -> account.getConnectionStatus() == ConnectionStatus.CONNECTED)
 			.map(this::toConnectionResponse)
 			.orElseGet(this::disconnectedResponse);
+	}
+
+	/** 저장된 Spotify 토큰과 권한을 폐기하되 SetPik 계정과 서비스 데이터는 유지한다. */
+	@Transactional
+	public void disconnect(Long userId) {
+		User user = userRepository.findById(userId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+		if (user.getStatus() != UserStatus.ACTIVE) {
+			throw new BusinessException(ErrorCode.UNAUTHORIZED);
+		}
+
+		SpotifyAccount account = spotifyAccountRepository.findByUserId(userId).orElse(null);
+		if (account == null || account.getConnectionStatus() == ConnectionStatus.DISCONNECTED) {
+			return;
+		}
+
+		LocalDateTime disconnectedAt = LocalDateTime.now(clock);
+		account.disconnect(disconnectedAt);
+		spotifyAccountScopeRepository
+			.findAllBySpotifyAccountIdOrderByScopeNameAsc(account.getSpotifyAccountId())
+			.stream()
+			.filter(scope -> scope.getIsGranted())
+			.forEach(scope -> scope.revoke(disconnectedAt));
 	}
 
 	private SpotifyConnectionResponse toConnectionResponse(SpotifyAccount account) {

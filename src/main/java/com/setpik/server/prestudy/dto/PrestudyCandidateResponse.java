@@ -18,7 +18,12 @@ public record PrestudyCandidateResponse(
 	public record TrackCandidate(
 		Long trackId,
 		String trackName,
-		String sourceType
+		String sourceType,
+		String albumName,
+		String albumImageUrl,
+		String spotifyTrackUrl,
+		String previewUrl,
+		Integer durationMs
 	) {
 	}
 }

@@ -1,5 +1,7 @@
 package com.setpik.server.favorite.service;
 
+import com.setpik.server.analysis.domain.AnalysisStatus;
+import com.setpik.server.analysis.repository.PlaylistAnalysisRepository;
 import com.setpik.server.common.api.PageResponse;
 import com.setpik.server.favorite.dto.FavoritePerformanceResponse;
 import com.setpik.server.favorite.dto.FavoritePerformanceSummary;
@@ -10,10 +12,15 @@ import com.setpik.server.favorite.repository.FavoritePerformanceRepository;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.performance.domain.Performance;
+import com.setpik.server.performance.domain.PerformanceMatch;
+import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.performance.service.PerformanceMetadataLookupService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,25 +33,62 @@ public class FavoritePerformanceService {
 
 	private final FavoritePerformanceRepository favoriteRepository;
 	private final PerformanceRepository performanceRepository;
+	private final PerformanceMatchRepository performanceMatchRepository;
+	private final PlaylistAnalysisRepository playlistAnalysisRepository;
+	private final PerformanceMetadataLookupService performanceMetadataLookupService;
 	private final Clock clock;
 
 	public FavoritePerformanceService(
 		FavoritePerformanceRepository favoriteRepository,
 		PerformanceRepository performanceRepository,
+		PerformanceMatchRepository performanceMatchRepository,
+		PlaylistAnalysisRepository playlistAnalysisRepository,
+		PerformanceMetadataLookupService performanceMetadataLookupService,
 		Clock clock
 	) {
 		this.favoriteRepository = favoriteRepository;
 		this.performanceRepository = performanceRepository;
+		this.performanceMatchRepository = performanceMatchRepository;
+		this.playlistAnalysisRepository = playlistAnalysisRepository;
+		this.performanceMetadataLookupService = performanceMetadataLookupService;
 		this.clock = clock;
 	}
 
 	public PageResponse<FavoritePerformanceResponse> getFavorites(Long userId, Pageable pageable) {
 		Page<FavoritePerformanceSummary> page =
 			favoriteRepository.findActiveSummariesByUserId(userId, pageable);
+		List<Long> performanceIds = page.getContent().stream()
+			.map(FavoritePerformanceSummary::performanceId)
+			.distinct()
+			.toList();
+		Map<Long, String> performanceTypeByPerformanceId =
+			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
+		Map<Long, List<String>> artistNamesByPerformanceId =
+			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, Integer> matchedArtistCountByPerformanceId =
+			matchedArtistCountsForLatestAnalysis(userId, performanceIds);
+
 		List<FavoritePerformanceResponse> content = page.getContent().stream()
-			.map(FavoritePerformanceResponse::from)
+			.map(summary -> FavoritePerformanceResponse.from(
+				summary,
+				performanceTypeByPerformanceId.get(summary.performanceId()),
+				artistNamesByPerformanceId.getOrDefault(summary.performanceId(), List.of()),
+				matchedArtistCountByPerformanceId.getOrDefault(summary.performanceId(), 0)))
 			.toList();
 		return PageResponse.of(content, page);
+	}
+
+	/** 사용자의 최신 COMPLETED 분석(analyzedAt 기준) 1건과 매칭된 아티스트 수만 사용한다. */
+	private Map<Long, Integer> matchedArtistCountsForLatestAnalysis(Long userId, List<Long> performanceIds) {
+		if (performanceIds.isEmpty()) return Map.of();
+		return playlistAnalysisRepository
+			.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+				userId, AnalysisStatus.COMPLETED)
+			.map(analysis -> performanceMatchRepository
+				.findByAnalysisIdAndPerformanceIdIn(analysis.getAnalysisId(), performanceIds).stream()
+				.collect(Collectors.toMap(
+					PerformanceMatch::getPerformanceId, PerformanceMatch::getMatchedArtistCount)))
+			.orElse(Map.of());
 	}
 
 	@Transactional
