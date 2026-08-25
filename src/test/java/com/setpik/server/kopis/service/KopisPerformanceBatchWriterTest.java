@@ -20,6 +20,9 @@ import com.setpik.server.performance.repository.PerformanceGenreRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
 import com.setpik.server.performance.repository.PerformanceTypeRepository;
+import com.setpik.server.performance.repository.PerformanceTagRepository;
+import com.setpik.server.performance.repository.PerformanceTagMapRepository;
+import com.setpik.server.performance.domain.PerformanceTag;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +48,8 @@ class KopisPerformanceBatchWriterTest {
 	@Mock private PerformanceGenreRepository performanceGenreRepository;
 	@Mock private PerformanceTypeRepository performanceTypeRepository;
 	@Mock private PerformanceTypeMapRepository performanceTypeMapRepository;
+	@Mock private PerformanceTagRepository performanceTagRepository;
+	@Mock private PerformanceTagMapRepository performanceTagMapRepository;
 
 	private KopisPerformanceBatchWriter writer;
 
@@ -58,8 +63,15 @@ class KopisPerformanceBatchWriterTest {
 			performanceArtistRepository,
 			performanceGenreRepository,
 			performanceTypeRepository,
-			performanceTypeMapRepository
+			performanceTypeMapRepository,
+			performanceTagRepository,
+			performanceTagMapRepository
 		);
+		PerformanceTag tag = org.mockito.Mockito.mock(PerformanceTag.class);
+		when(tag.getTagCode()).thenReturn("INTERNATIONAL");
+		when(tag.getPerformanceTagId()).thenReturn(90L);
+		when(performanceTagRepository.findByTagCodeIn(List.of("INTERNATIONAL")))
+			.thenReturn(List.of(tag));
 	}
 
 	@Test
@@ -109,6 +121,7 @@ class KopisPerformanceBatchWriterTest {
 		verify(performanceArtistRepository).saveAll(anyList());
 		verify(performanceGenreRepository).saveAll(anyList());
 		verify(performanceTypeMapRepository).saveAll(anyList());
+		verify(performanceTagMapRepository).saveAll(anyList());
 	}
 
 	private KopisPerformanceDetail detail() {
@@ -116,8 +129,8 @@ class KopisPerformanceBatchWriterTest {
 		return new KopisPerformanceDetail(
 			"PF001", "SetPIK Festival", date, date.plusDays(2),
 			"https://example.com/poster.jpg", "https://tickets.example.com/1",
-			"공연예정", "전석 100,000원", "인천광역시", "대중음악",
-			"FC001", "송도달빛축제공원", List.of("Artist A"));
+			"공연예정", "전석 100,000원", null, null, "인천광역시", "대중음악",
+			"FC001", "송도달빛축제공원", List.of("Artist A"), true, true);
 	}
 
 	private KopisVenueDetail venue() {

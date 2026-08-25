@@ -104,8 +104,16 @@ public class PerformanceService {
 			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
 		Map<Long, String> aliasImageUrlByArtistId = aliasImageUrls(artistById.keySet());
 
+		Map<Long, String> genreNames = performanceMetadataLookupService
+			.genreNameByPerformanceId(List.of(performanceId));
+		Map<Long, String> performanceTypes = performanceMetadataLookupService
+			.performanceTypeCodeByPerformanceId(List.of(performanceId));
+		Map<Long, List<String>> tags = performanceMetadataLookupService
+			.tagCodesByPerformanceId(List.of(performanceId));
+
 		return PerformanceDetailResponse.of(performance, venue, lineup, artistById,
-			aliasImageUrlByArtistId);
+			aliasImageUrlByArtistId, genreNames.get(performanceId),
+			performanceTypes.get(performanceId), tags.getOrDefault(performanceId, List.of()));
 	}
 
 	private Map<Long, String> aliasImageUrls(Set<Long> kopisArtistIds) {
@@ -169,6 +177,10 @@ public class PerformanceService {
 			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
 		Map<Long, List<String>> artistNamesByPerformanceId =
 			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, String> genreNameByPerformanceId =
+			performanceMetadataLookupService.genreNameByPerformanceId(performanceIds);
+		Map<Long, List<String>> tagsByPerformanceId =
+			performanceMetadataLookupService.tagCodesByPerformanceId(performanceIds);
 		Map<Long, PrestudyPlaylistCardStatus> prestudyStatusByPerformanceId =
 			prestudyPlaylistStatusLookupService.latestByPerformanceId(userId, performanceIds);
 
@@ -183,6 +195,8 @@ public class PerformanceService {
 					performance,
 					venueById.get(performance.getVenueId()),
 					performanceTypeByPerformanceId.get(performance.getPerformanceId()),
+					genreNameByPerformanceId.get(performance.getPerformanceId()),
+					tagsByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
 					artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
 					prestudyStatusByPerformanceId.get(performance.getPerformanceId())
 				);
@@ -234,6 +248,10 @@ public class PerformanceService {
 			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
 		Map<Long, List<String>> artistNamesByPerformanceId =
 			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, String> genreNameByPerformanceId =
+			performanceMetadataLookupService.genreNameByPerformanceId(performanceIds);
+		Map<Long, List<String>> tagsByPerformanceId =
+			performanceMetadataLookupService.tagCodesByPerformanceId(performanceIds);
 		Map<Long, Integer> recommendationScoreByPerformanceId = analysisId == null
 			? Map.of()
 			: performanceMatchRepository.findByAnalysisIdAndPerformanceIdIn(analysisId, performanceIds).stream()
@@ -246,6 +264,8 @@ public class PerformanceService {
 				performance,
 				venueById.get(performance.getVenueId()),
 				performanceTypeByPerformanceId.get(performance.getPerformanceId()),
+				genreNameByPerformanceId.get(performance.getPerformanceId()),
+				tagsByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
 				artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
 				analysisId == null
 					? null

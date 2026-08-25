@@ -14,7 +14,9 @@ public record FavoritePerformanceResponse(
 	String posterUrl,
 	LocalDate startDate,
 	String venueName,
+	String genreName,
 	String performanceType,
+	List<String> tags,
 	String performanceStatus,
 	List<String> artistNames,
 	Integer matchedArtistCount,
@@ -29,6 +31,8 @@ public record FavoritePerformanceResponse(
 	public static FavoritePerformanceResponse from(
 		FavoritePerformanceSummary summary,
 		String performanceType,
+		String genreName,
+		List<String> tags,
 		List<String> artistNames,
 		Integer matchedArtistCount,
 		PrestudyPlaylistCardStatus prestudyStatus
@@ -40,7 +44,9 @@ public record FavoritePerformanceResponse(
 			summary.posterUrl(),
 			summary.startDate(),
 			summary.venueName(),
+			genreName,
 			performanceType,
+			tags,
 			summary.performanceStatus().name(),
 			artistNames,
 			matchedArtistCount,

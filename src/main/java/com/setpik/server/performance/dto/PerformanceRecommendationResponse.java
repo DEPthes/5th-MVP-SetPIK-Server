@@ -21,7 +21,9 @@ public record PerformanceRecommendationResponse(
 	String venueName,
 	String region,
 	List<String> artistNames,
+	String genreName,
 	String performanceType,
+	List<String> tags,
 	String performanceStatus,
 	Integer minTicketPrice,
 	Long prestudyPlaylistId,
@@ -33,6 +35,8 @@ public record PerformanceRecommendationResponse(
 		Performance performance,
 		Venue venue,
 		String performanceType,
+		String genreName,
+		List<String> tags,
 		List<String> artistNames,
 		PrestudyPlaylistCardStatus prestudyStatus
 	) {
@@ -50,7 +54,9 @@ public record PerformanceRecommendationResponse(
 			venue == null ? null : venue.getVenueName(),
 			venue == null ? null : venue.getCity(),
 			artistNames,
+			genreName,
 			performanceType,
+			tags,
 			performance.getPerformanceStatus().name(),
 			performance.getMinTicketPrice(),
 			prestudyStatus == null ? null : prestudyStatus.prestudyPlaylistId(),

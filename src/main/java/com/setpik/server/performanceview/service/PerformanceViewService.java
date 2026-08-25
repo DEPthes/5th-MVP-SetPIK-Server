@@ -57,11 +57,17 @@ public class PerformanceViewService {
 			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
 		Map<Long, List<String>> artistNamesByPerformanceId =
 			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, String> genreNameByPerformanceId =
+			performanceMetadataLookupService.genreNameByPerformanceId(performanceIds);
+		Map<Long, List<String>> tagsByPerformanceId =
+			performanceMetadataLookupService.tagCodesByPerformanceId(performanceIds);
 
 		List<PerformanceViewResponse> content = page.getContent().stream()
 			.map(summary -> PerformanceViewResponse.from(
 				summary,
 				performanceTypeByPerformanceId.get(summary.performanceId()),
+				genreNameByPerformanceId.get(summary.performanceId()),
+				tagsByPerformanceId.getOrDefault(summary.performanceId(), List.of()),
 				artistNamesByPerformanceId.getOrDefault(summary.performanceId(), List.of())))
 			.toList();
 		return PageResponse.of(content, page);

@@ -12,7 +12,9 @@ public record PerformanceViewResponse(
 	String posterUrl,
 	LocalDate startDate,
 	String venueName,
+	String genreName,
 	String performanceType,
+	List<String> tags,
 	String performanceStatus,
 	List<String> artistNames,
 	Long analysisId,
@@ -24,6 +26,8 @@ public record PerformanceViewResponse(
 	public static PerformanceViewResponse from(
 		PerformanceViewSummary summary,
 		String performanceType,
+		String genreName,
+		List<String> tags,
 		List<String> artistNames
 	) {
 		return new PerformanceViewResponse(
@@ -33,7 +37,9 @@ public record PerformanceViewResponse(
 			summary.posterUrl(),
 			summary.startDate(),
 			summary.venueName(),
+			genreName,
 			performanceType,
+			tags,
 			summary.performanceStatus().name(),
 			artistNames,
 			summary.analysisId(),
