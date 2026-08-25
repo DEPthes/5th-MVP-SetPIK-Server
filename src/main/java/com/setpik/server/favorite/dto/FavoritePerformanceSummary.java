@@ -1,5 +1,6 @@
 package com.setpik.server.favorite.dto;
 
+import com.setpik.server.performance.domain.PerformanceStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -11,6 +12,9 @@ public record FavoritePerformanceSummary(
 	String posterUrl,
 	LocalDate startDate,
 	String venueName,
+	PerformanceStatus performanceStatus,
+	String priceType,
+	String ticketPriceText,
 	LocalDateTime savedAt
 ) {
 }

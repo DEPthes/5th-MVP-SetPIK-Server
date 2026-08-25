@@ -14,12 +14,20 @@ import com.setpik.server.auth.security.JwtAccessTokenProvider;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.repository.UserRepository;
 import com.setpik.server.performance.domain.Performance;
+import com.setpik.server.performance.domain.PerformanceArtist;
 import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.domain.PerformanceStatus;
+import com.setpik.server.performance.domain.PerformanceType;
+import com.setpik.server.performance.domain.PerformanceTypeMap;
 import com.setpik.server.performance.domain.Venue;
+import com.setpik.server.performance.repository.PerformanceArtistRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.PerformanceMatchRepository;
+import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
+import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import com.setpik.server.performance.repository.VenueRepository;
+import com.setpik.server.artist.domain.Artist;
+import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.performanceview.domain.PerformanceView;
 import com.setpik.server.performanceview.repository.PerformanceViewRepository;
 import com.setpik.server.playlist.domain.SpotifyPlaylist;
@@ -49,6 +57,10 @@ class PerformanceViewControllerIntegrationTest {
 	@Autowired private VenueRepository venueRepository;
 	@Autowired private PerformanceRepository performanceRepository;
 	@Autowired private PerformanceMatchRepository performanceMatchRepository;
+	@Autowired private PerformanceArtistRepository performanceArtistRepository;
+	@Autowired private ArtistRepository artistRepository;
+	@Autowired private PerformanceTypeRepository performanceTypeRepository;
+	@Autowired private PerformanceTypeMapRepository performanceTypeMapRepository;
 	@Autowired private PerformanceViewRepository performanceViewRepository;
 	@Autowired private JwtAccessTokenProvider accessTokenProvider;
 
@@ -86,6 +98,15 @@ class PerformanceViewControllerIntegrationTest {
 			otherUser.getUserId(), analysis.getAnalysisId(), latestPerformance.getPerformanceId(),
 			now.plusDays(1)));
 
+		PerformanceType festivalType = performanceTypeRepository.saveAndFlush(
+			new PerformanceType("FESTIVAL", "페스티벌"));
+		performanceTypeMapRepository.saveAndFlush(
+			new PerformanceTypeMap(latestPerformance.getPerformanceId(), festivalType.getPerformanceTypeId()));
+		Artist headliner = artistRepository.saveAndFlush(
+			Artist.fromKopis("Headliner Artist"));
+		performanceArtistRepository.saveAndFlush(
+			new PerformanceArtist(headliner.getArtistId(), latestPerformance.getPerformanceId(), 1L, true));
+
 		mockMvc.perform(get("/api/v1/performance-views")
 				.param("page", "0")
 				.param("size", "1")
@@ -102,6 +123,9 @@ class PerformanceViewControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].posterUrl").value("latest.jpg"))
 			.andExpect(jsonPath("$.result.content[0].startDate").value("2026-09-01"))
 			.andExpect(jsonPath("$.result.content[0].venueName").value("송도달빛축제공원"))
+			.andExpect(jsonPath("$.result.content[0].performanceType").value("FESTIVAL"))
+			.andExpect(jsonPath("$.result.content[0].performanceStatus").value("SCHEDULED"))
+			.andExpect(jsonPath("$.result.content[0].artistNames[0]").value("Headliner Artist"))
 			.andExpect(jsonPath("$.result.content[0].analysisId").value(analysis.getAnalysisId()))
 			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(1))
 			.andExpect(jsonPath("$.result.content[0].viewedAt", endsWith("+09:00")))

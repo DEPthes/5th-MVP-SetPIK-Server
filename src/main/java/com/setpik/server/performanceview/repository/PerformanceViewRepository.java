@@ -31,6 +31,7 @@ public interface PerformanceViewRepository extends JpaRepository<PerformanceView
 				performance.posterUrl,
 				performance.startDate,
 				venue.venueName,
+				performance.performanceStatus,
 				performanceView.analysisId,
 				coalesce(match.matchedArtistCount, 0),
 				performanceView.viewedAt
