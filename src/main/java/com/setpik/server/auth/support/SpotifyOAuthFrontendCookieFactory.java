@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class SpotifyOAuthFrontendCookieFactory {
 
-	private static final String COOKIE_PATH = "/api/v1/auth/spotify";
 	private final SpotifyOAuthProperties properties;
 
 	public SpotifyOAuthFrontendCookieFactory(SpotifyOAuthProperties properties) {
@@ -45,6 +44,6 @@ public class SpotifyOAuthFrontendCookieFactory {
 			.httpOnly(true)
 			.secure(properties.secureCookie())
 			.sameSite("Lax")
-			.path(COOKIE_PATH);
+			.path(properties.cookiePath());
 	}
 }

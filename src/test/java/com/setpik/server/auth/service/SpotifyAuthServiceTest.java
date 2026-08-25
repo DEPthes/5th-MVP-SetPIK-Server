@@ -34,6 +34,7 @@ class SpotifyAuthServiceTest {
 			List.of("user-read-email", "playlist-read-private"),
 			"setpik_spotify_oauth_state",
 			"setpik_spotify_frontend_origin",
+			"/api/v1/auth/spotify",
 			Duration.ofMinutes(10),
 			false
 		);

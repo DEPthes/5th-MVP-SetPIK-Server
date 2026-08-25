@@ -10,21 +10,22 @@ import org.springframework.http.ResponseCookie;
 class RefreshTokenCookieFactoryTest {
 
 	@Test
-	void createsProductionCookieForCrossSiteRequest() {
-		SetpikAuthProperties properties = properties(true, "None");
+	void createsProductionCookieForVercelProxyRequest() {
+		SetpikAuthProperties properties = properties(true, "Lax", "/backend/v1/auth");
 		RefreshTokenCookieFactory factory = new RefreshTokenCookieFactory(properties);
 
 		ResponseCookie cookie = factory.create("refresh-token");
 
 		assertThat(cookie.isHttpOnly()).isTrue();
 		assertThat(cookie.isSecure()).isTrue();
-		assertThat(cookie.getSameSite()).isEqualTo("None");
-		assertThat(cookie.getPath()).isEqualTo("/api/v1/auth");
+		assertThat(cookie.getSameSite()).isEqualTo("Lax");
+		assertThat(cookie.getPath()).isEqualTo("/backend/v1/auth");
+		assertThat(cookie.getDomain()).isNull();
 	}
 
 	@Test
 	void createsLocalCookieWithLaxPolicy() {
-		SetpikAuthProperties properties = properties(false, "Lax");
+		SetpikAuthProperties properties = properties(false, "Lax", "/api/v1/auth");
 		RefreshTokenCookieFactory factory = new RefreshTokenCookieFactory(properties);
 
 		ResponseCookie cookie = factory.create("refresh-token");
@@ -33,12 +34,12 @@ class RefreshTokenCookieFactoryTest {
 		assertThat(cookie.getSameSite()).isEqualTo("Lax");
 	}
 
-	private SetpikAuthProperties properties(boolean secure, String sameSite) {
+	private SetpikAuthProperties properties(boolean secure, String sameSite, String cookiePath) {
 		return new SetpikAuthProperties(
 			"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 			Duration.ofDays(14),
 			"refreshToken",
-			"/api/v1/auth",
+			cookiePath,
 			secure,
 			sameSite,
 			"http://localhost:3000/oauth/success",
