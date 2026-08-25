@@ -32,6 +32,8 @@ import com.setpik.server.performance.repository.PerformanceTypeRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import com.setpik.server.playlist.domain.SpotifyPlaylist;
 import com.setpik.server.playlist.repository.SpotifyPlaylistRepository;
+import com.setpik.server.prestudy.domain.PrestudyPlaylist;
+import com.setpik.server.prestudy.repository.PrestudyPlaylistRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,7 @@ class FavoritePerformanceControllerIntegrationTest {
 	@Autowired private ArtistRepository artistRepository;
 	@Autowired private PerformanceTypeRepository performanceTypeRepository;
 	@Autowired private PerformanceTypeMapRepository performanceTypeMapRepository;
+	@Autowired private PrestudyPlaylistRepository prestudyPlaylistRepository;
 	@Autowired private JwtAccessTokenProvider accessTokenProvider;
 
 	@Test
@@ -110,6 +113,15 @@ class FavoritePerformanceControllerIntegrationTest {
 			(byte) 2, 2, 3, (byte) 66,
 			"플레이리스트 속 아티스트 2팀이 이 공연에 출연합니다.",
 			now, latestPerformance.getPerformanceId(), analysis.getAnalysisId(), null));
+		PrestudyPlaylist prestudyPlaylist = prestudyPlaylistRepository.saveAndFlush(
+			new PrestudyPlaylist(
+				"Latest Festival 예습",
+				false,
+				user.getUserId(),
+				latestPerformance.getPerformanceId(),
+				analysis.getAnalysisId()));
+		prestudyPlaylist.markCompleted("spotify-prestudy-701", 10);
+		prestudyPlaylistRepository.flush();
 
 		mockMvc.perform(get("/api/v1/favorites")
 				.param("page", "0")
@@ -131,6 +143,10 @@ class FavoritePerformanceControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].artistNames[0]").value("Headliner Artist"))
 			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(2))
 			.andExpect(jsonPath("$.result.content[0].minTicketPrice").value(30000))
+			.andExpect(jsonPath("$.result.content[0].prestudyPlaylistId")
+				.value(prestudyPlaylist.getPrestudyPlaylistId()))
+			.andExpect(jsonPath("$.result.content[0].creationStatus").value("COMPLETED"))
+			.andExpect(jsonPath("$.result.content[0].spotifyPlaylistId").value("spotify-prestudy-701"))
 			.andExpect(jsonPath("$.result.content[0].savedAt", endsWith("+09:00")))
 			.andExpect(jsonPath("$.result.page").value(0))
 			.andExpect(jsonPath("$.result.size").value(1))

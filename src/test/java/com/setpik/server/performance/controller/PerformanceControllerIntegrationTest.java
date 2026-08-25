@@ -140,7 +140,8 @@ class PerformanceControllerIntegrationTest {
 				"https://images.example.com/performances/1001.jpg",
 				LocalDate.of(2026, 8, 15), LocalDate.of(2026, 8, 17),
 				"송도달빛축제공원", "인천", List.of("Artist A"),
-				"FESTIVAL", "ON_SALE", 80000, 2003
+				"FESTIVAL", "ON_SALE", 80000, 2003,
+				701L, "COMPLETED", "spotify-playlist-701"
 			)),
 			0, 20, 1, 1, false
 		));
@@ -163,6 +164,9 @@ class PerformanceControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].performanceType").value("FESTIVAL"))
 			.andExpect(jsonPath("$.result.content[0].minTicketPrice").value(80000))
 			.andExpect(jsonPath("$.result.content[0].recommendationScore").value(2003))
+			.andExpect(jsonPath("$.result.content[0].prestudyPlaylistId").value(701))
+			.andExpect(jsonPath("$.result.content[0].creationStatus").value("COMPLETED"))
+			.andExpect(jsonPath("$.result.content[0].spotifyPlaylistId").value("spotify-playlist-701"))
 			.andExpect(jsonPath("$.result.totalElements").value(1));
 	}
 

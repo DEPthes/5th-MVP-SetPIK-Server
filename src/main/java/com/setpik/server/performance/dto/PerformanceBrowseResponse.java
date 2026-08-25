@@ -4,6 +4,7 @@ import com.setpik.server.performance.domain.Performance;
 import com.setpik.server.performance.domain.Venue;
 import java.time.LocalDate;
 import java.util.List;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistCardStatus;
 
 public record PerformanceBrowseResponse(
 	Long performanceId,
@@ -17,14 +18,18 @@ public record PerformanceBrowseResponse(
 	String performanceType,
 	String performanceStatus,
 	Integer minTicketPrice,
-	Integer recommendationScore
+	Integer recommendationScore,
+	Long prestudyPlaylistId,
+	String creationStatus,
+	String spotifyPlaylistId
 ) {
 	public static PerformanceBrowseResponse of(
 		Performance performance,
 		Venue venue,
 		String performanceType,
 		List<String> artistNames,
-		Integer recommendationScore
+		Integer recommendationScore,
+		PrestudyPlaylistCardStatus prestudyStatus
 	) {
 		return new PerformanceBrowseResponse(
 			performance.getPerformanceId(),
@@ -38,7 +43,10 @@ public record PerformanceBrowseResponse(
 			performanceType,
 			performance.getPerformanceStatus().name(),
 			performance.getMinTicketPrice(),
-			recommendationScore
+			recommendationScore,
+			prestudyStatus == null ? null : prestudyStatus.prestudyPlaylistId(),
+			prestudyStatus == null ? null : prestudyStatus.creationStatus(),
+			prestudyStatus == null ? null : prestudyStatus.spotifyPlaylistId()
 		);
 	}
 }

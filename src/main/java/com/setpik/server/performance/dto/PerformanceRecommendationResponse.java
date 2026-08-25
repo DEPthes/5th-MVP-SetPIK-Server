@@ -5,6 +5,7 @@ import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.domain.Venue;
 import java.time.LocalDate;
 import java.util.List;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistCardStatus;
 
 public record PerformanceRecommendationResponse(
 	Long matchId,
@@ -22,14 +23,18 @@ public record PerformanceRecommendationResponse(
 	List<String> artistNames,
 	String performanceType,
 	String performanceStatus,
-	Integer minTicketPrice
+	Integer minTicketPrice,
+	Long prestudyPlaylistId,
+	String creationStatus,
+	String spotifyPlaylistId
 ) {
 	public static PerformanceRecommendationResponse of(
 		PerformanceMatch match,
 		Performance performance,
 		Venue venue,
 		String performanceType,
-		List<String> artistNames
+		List<String> artistNames,
+		PrestudyPlaylistCardStatus prestudyStatus
 	) {
 		return new PerformanceRecommendationResponse(
 			match.getMatchId(),
@@ -47,7 +52,10 @@ public record PerformanceRecommendationResponse(
 			artistNames,
 			performanceType,
 			performance.getPerformanceStatus().name(),
-			performance.getMinTicketPrice()
+			performance.getMinTicketPrice(),
+			prestudyStatus == null ? null : prestudyStatus.prestudyPlaylistId(),
+			prestudyStatus == null ? null : prestudyStatus.creationStatus(),
+			prestudyStatus == null ? null : prestudyStatus.spotifyPlaylistId()
 		);
 	}
 }

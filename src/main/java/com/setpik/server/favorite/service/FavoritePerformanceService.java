@@ -16,6 +16,8 @@ import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.service.PerformanceMetadataLookupService;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistCardStatus;
+import com.setpik.server.prestudy.service.PrestudyPlaylistStatusLookupService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +38,7 @@ public class FavoritePerformanceService {
 	private final PerformanceMatchRepository performanceMatchRepository;
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
 	private final PerformanceMetadataLookupService performanceMetadataLookupService;
+	private final PrestudyPlaylistStatusLookupService prestudyPlaylistStatusLookupService;
 	private final Clock clock;
 
 	public FavoritePerformanceService(
@@ -44,6 +47,7 @@ public class FavoritePerformanceService {
 		PerformanceMatchRepository performanceMatchRepository,
 		PlaylistAnalysisRepository playlistAnalysisRepository,
 		PerformanceMetadataLookupService performanceMetadataLookupService,
+		PrestudyPlaylistStatusLookupService prestudyPlaylistStatusLookupService,
 		Clock clock
 	) {
 		this.favoriteRepository = favoriteRepository;
@@ -51,6 +55,7 @@ public class FavoritePerformanceService {
 		this.performanceMatchRepository = performanceMatchRepository;
 		this.playlistAnalysisRepository = playlistAnalysisRepository;
 		this.performanceMetadataLookupService = performanceMetadataLookupService;
+		this.prestudyPlaylistStatusLookupService = prestudyPlaylistStatusLookupService;
 		this.clock = clock;
 	}
 
@@ -67,13 +72,16 @@ public class FavoritePerformanceService {
 			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
 		Map<Long, Integer> matchedArtistCountByPerformanceId =
 			matchedArtistCountsForLatestAnalysis(userId, performanceIds);
+		Map<Long, PrestudyPlaylistCardStatus> prestudyStatusByPerformanceId =
+			prestudyPlaylistStatusLookupService.latestByPerformanceId(userId, performanceIds);
 
 		List<FavoritePerformanceResponse> content = page.getContent().stream()
 			.map(summary -> FavoritePerformanceResponse.from(
 				summary,
 				performanceTypeByPerformanceId.get(summary.performanceId()),
 				artistNamesByPerformanceId.getOrDefault(summary.performanceId(), List.of()),
-				matchedArtistCountByPerformanceId.getOrDefault(summary.performanceId(), 0)))
+				matchedArtistCountByPerformanceId.getOrDefault(summary.performanceId(), 0),
+				prestudyStatusByPerformanceId.get(summary.performanceId())))
 			.toList();
 		return PageResponse.of(content, page);
 	}

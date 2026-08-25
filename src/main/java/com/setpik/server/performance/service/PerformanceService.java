@@ -26,6 +26,8 @@ import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.TicketScheduleRepository;
 import com.setpik.server.performance.repository.VenueRepository;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistCardStatus;
+import com.setpik.server.prestudy.service.PrestudyPlaylistStatusLookupService;
 import java.time.LocalDate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -61,6 +63,7 @@ public class PerformanceService {
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository;
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
 	private final PerformanceMetadataLookupService performanceMetadataLookupService;
+	private final PrestudyPlaylistStatusLookupService prestudyPlaylistStatusLookupService;
 
 	public PerformanceService(
 		PerformanceRepository performanceRepository,
@@ -72,7 +75,8 @@ public class PerformanceService {
 		PerformanceMatchRepository performanceMatchRepository,
 		PerformanceMatchArtistRepository performanceMatchArtistRepository,
 		PlaylistAnalysisRepository playlistAnalysisRepository,
-		PerformanceMetadataLookupService performanceMetadataLookupService
+		PerformanceMetadataLookupService performanceMetadataLookupService,
+		PrestudyPlaylistStatusLookupService prestudyPlaylistStatusLookupService
 	) {
 		this.performanceRepository = performanceRepository;
 		this.venueRepository = venueRepository;
@@ -84,6 +88,7 @@ public class PerformanceService {
 		this.performanceMatchArtistRepository = performanceMatchArtistRepository;
 		this.playlistAnalysisRepository = playlistAnalysisRepository;
 		this.performanceMetadataLookupService = performanceMetadataLookupService;
+		this.prestudyPlaylistStatusLookupService = prestudyPlaylistStatusLookupService;
 	}
 
 	public PerformanceDetailResponse getPerformance(Long performanceId) {
@@ -164,6 +169,8 @@ public class PerformanceService {
 			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
 		Map<Long, List<String>> artistNamesByPerformanceId =
 			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, PrestudyPlaylistCardStatus> prestudyStatusByPerformanceId =
+			prestudyPlaylistStatusLookupService.latestByPerformanceId(userId, performanceIds);
 
 		List<PerformanceRecommendationResponse> content = matches.getContent().stream()
 			.map(match -> {
@@ -176,7 +183,8 @@ public class PerformanceService {
 					performance,
 					venueById.get(performance.getVenueId()),
 					performanceTypeByPerformanceId.get(performance.getPerformanceId()),
-					artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of())
+					artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
+					prestudyStatusByPerformanceId.get(performance.getPerformanceId())
 				);
 			})
 			.toList();
@@ -230,6 +238,8 @@ public class PerformanceService {
 			? Map.of()
 			: performanceMatchRepository.findByAnalysisIdAndPerformanceIdIn(analysisId, performanceIds).stream()
 				.collect(Collectors.toMap(PerformanceMatch::getPerformanceId, PerformanceService::recommendationScore));
+		Map<Long, PrestudyPlaylistCardStatus> prestudyStatusByPerformanceId =
+			prestudyPlaylistStatusLookupService.latestByPerformanceId(userId, performanceIds);
 
 		List<PerformanceBrowseResponse> content = performances.getContent().stream()
 			.map(performance -> PerformanceBrowseResponse.of(
@@ -239,7 +249,8 @@ public class PerformanceService {
 				artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of()),
 				analysisId == null
 					? null
-					: recommendationScoreByPerformanceId.getOrDefault(performance.getPerformanceId(), 0)
+					: recommendationScoreByPerformanceId.getOrDefault(performance.getPerformanceId(), 0),
+				prestudyStatusByPerformanceId.get(performance.getPerformanceId())
 			))
 			.toList();
 
