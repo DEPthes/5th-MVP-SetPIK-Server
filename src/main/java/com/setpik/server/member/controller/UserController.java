@@ -192,6 +192,20 @@ public class UserController {
 	}
 
 	@Operation(
+		summary = "Spotify 연동 해제",
+		description = "저장된 Spotify 토큰과 권한을 폐기하고 연결 상태를 해제합니다."
+	)
+	@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
+	@DeleteMapping("/me/spotify-connection")
+	public ResponseEntity<ApiResponse<Void>> disconnectSpotify(
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		Long userId = parseUserId(jwt.getSubject());
+		spotifyConnectionService.disconnect(userId);
+		return ResponseEntity.ok(ApiResponse.success("Spotify 연동이 해제되었습니다.", null));
+	}
+
+	@Operation(
 		summary = "온보딩 상태 조회",
 		description = "최근 플레이리스트 선택과 관심 아티스트 선택 완료 여부를 조회합니다."
 	)
