@@ -3,6 +3,7 @@ package com.setpik.server.member.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,12 +21,14 @@ import com.setpik.server.spotify.domain.SpotifyAccountScope;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
 import com.setpik.server.spotify.repository.SpotifyAccountScopeRepository;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -93,6 +96,8 @@ class UserControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.userId").value(user.getUserId()))
 			.andExpect(jsonPath("$.result.status").value("ACTIVE"))
 			.andExpect(jsonPath("$.result.lastLoginAt").value("2026-07-28T09:10:11+09:00"))
+			.andExpect(jsonPath("$.result.nickname").doesNotExist())
+			.andExpect(jsonPath("$.result.birthDate").doesNotExist())
 			.andExpect(jsonPath("$.result.spotifyConnected").value(true))
 			.andExpect(jsonPath("$.result.spotifyAccount.spotifyUserId").value("31abcde"))
 			.andExpect(jsonPath("$.result.spotifyAccount.displayName").value("setpik_user"))
@@ -110,6 +115,81 @@ class UserControllerIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.result.spotifyConnected").value(false))
 			.andExpect(jsonPath("$.result.spotifyAccount").doesNotExist());
+	}
+
+	@Test
+	void updatesOnlyNicknameWhenBirthDateIsNotProvided() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		user.updateBirthDate(LocalDate.of(2000, 1, 1));
+		userRepository.saveAndFlush(user);
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+
+		mockMvc.perform(patch(PROFILE_URL)
+			.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"nickname\": \"newNickname\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.nickname").value("newNickname"))
+			.andExpect(jsonPath("$.result.birthDate").value("2000-01-01"));
+
+		assertThat(userRepository.findById(user.getUserId()).orElseThrow().getNickname())
+			.isEqualTo("newNickname");
+	}
+
+	@Test
+	void updatesOnlyBirthDateWhenNicknameIsNotProvided() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		user.updateNickname("oldNickname");
+		userRepository.saveAndFlush(user);
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+
+		mockMvc.perform(patch(PROFILE_URL)
+			.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"birthDate\": \"1999-12-31\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.nickname").value("oldNickname"))
+			.andExpect(jsonPath("$.result.birthDate").value("1999-12-31"));
+
+		assertThat(userRepository.findById(user.getUserId()).orElseThrow().getBirthDate())
+			.isEqualTo(LocalDate.of(1999, 12, 31));
+	}
+
+	@Test
+	void rejectsNicknameLongerThan20Characters() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+
+		mockMvc.perform(patch(PROFILE_URL)
+			.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"nickname\": \"123456789012345678901\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.isSuccess").value(false))
+			.andExpect(jsonPath("$.code").value(2000));
+	}
+
+	@Test
+	void rejectsBlankNickname() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+
+		mockMvc.perform(patch(PROFILE_URL)
+			.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"nickname\": \"   \"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.isSuccess").value(false))
+			.andExpect(jsonPath("$.code").value(2000));
+	}
+
+	@Test
+	void returns401WhenPatchingProfileWithoutBearerToken() throws Exception {
+		mockMvc.perform(patch(PROFILE_URL)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"nickname\": \"newNickname\"}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value(2001));
 	}
 
 	@Test

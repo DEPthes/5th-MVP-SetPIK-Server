@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /** Flyway의 Users 테이블을 그대로 매핑한다. */
@@ -27,6 +28,12 @@ public class User extends BaseEntity {
 
 	@Column(name = "last_login_at", nullable = true)
 	private LocalDateTime lastLoginAt;
+
+	@Column(name = "nickname", nullable = true, length = 20)
+	private String nickname;
+
+	@Column(name = "birth_date", nullable = true)
+	private LocalDate birthDate;
 
 	protected User() {
 	}
@@ -49,6 +56,16 @@ public class User extends BaseEntity {
 		this.status = UserStatus.WITHDRAWN;
 	}
 
+	/** 닉네임을 변경한다. */
+	public void updateNickname(String nickname) {
+		this.nickname = nickname;
+	}
+
+	/** 생년월일을 변경한다. */
+	public void updateBirthDate(LocalDate birthDate) {
+		this.birthDate = birthDate;
+	}
+
 	public Long getUserId() {
 		return userId;
 	}
@@ -59,6 +76,14 @@ public class User extends BaseEntity {
 
 	public LocalDateTime getLastLoginAt() {
 		return lastLoginAt;
+	}
+
+	public String getNickname() {
+		return nickname;
+	}
+
+	public LocalDate getBirthDate() {
+		return birthDate;
 	}
 
 }
