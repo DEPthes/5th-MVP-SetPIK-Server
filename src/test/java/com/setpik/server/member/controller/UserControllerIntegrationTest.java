@@ -3,6 +3,7 @@ package com.setpik.server.member.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,7 +29,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -45,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 class UserControllerIntegrationTest {
 
 	private static final String PROFILE_URL = "/api/v1/users/me";
+	private static final String PROFILE_IMAGE_URL = "/api/v1/users/me/profile-image";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -98,6 +102,7 @@ class UserControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.lastLoginAt").value("2026-07-28T09:10:11+09:00"))
 			.andExpect(jsonPath("$.result.nickname").doesNotExist())
 			.andExpect(jsonPath("$.result.birthDate").doesNotExist())
+			.andExpect(jsonPath("$.result.profileImageUrl").doesNotExist())
 			.andExpect(jsonPath("$.result.spotifyConnected").value(true))
 			.andExpect(jsonPath("$.result.spotifyAccount.spotifyUserId").value("31abcde"))
 			.andExpect(jsonPath("$.result.spotifyAccount.displayName").value("setpik_user"))
@@ -188,6 +193,64 @@ class UserControllerIntegrationTest {
 		mockMvc.perform(patch(PROFILE_URL)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"nickname\": \"newNickname\"}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value(2001));
+	}
+
+	@Test
+	void uploadsProfileImageAndReturnsUploadedUrl() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+		MockMultipartFile image = new MockMultipartFile(
+			"image", "profile.png", "image/png", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart(HttpMethod.PUT, PROFILE_IMAGE_URL)
+				.file(image)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.isSuccess").value(true))
+			.andExpect(jsonPath("$.result.profileImageUrl").isNotEmpty());
+
+		String uploadedUrl = userRepository.findById(user.getUserId()).orElseThrow().getProfileImageUrl();
+		assertThat(uploadedUrl).isNotBlank();
+	}
+
+	@Test
+	void rejectsNonImageFileOnProfileImageUpload() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+		MockMultipartFile notAnImage = new MockMultipartFile(
+			"image", "profile.txt", "text/plain", "not-an-image".getBytes());
+
+		mockMvc.perform(multipart(HttpMethod.PUT, PROFILE_IMAGE_URL)
+				.file(notAnImage)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value(2000));
+	}
+
+	@Test
+	void resetsProfileImageToDefault() throws Exception {
+		User user = userRepository.saveAndFlush(User.createActive(LocalDateTime.now()));
+		user.updateProfileImageUrl("https://placeholder.setpik.local/profile-images/existing");
+		userRepository.saveAndFlush(user);
+		String accessToken = accessTokenProvider.issue(user.getUserId());
+
+		mockMvc.perform(delete(PROFILE_IMAGE_URL)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.isSuccess").value(true))
+			.andExpect(jsonPath("$.result.profileImageUrl").doesNotExist());
+
+		assertThat(userRepository.findById(user.getUserId()).orElseThrow().getProfileImageUrl()).isNull();
+	}
+
+	@Test
+	void returns401WhenUploadingProfileImageWithoutBearerToken() throws Exception {
+		MockMultipartFile image = new MockMultipartFile(
+			"image", "profile.png", "image/png", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart(HttpMethod.PUT, PROFILE_IMAGE_URL).file(image))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value(2001));
 	}
