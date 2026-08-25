@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -216,6 +217,22 @@ class UserControllerIntegrationTest {
 
 		String uploadedUrl = userRepository.findById(user.getUserId()).orElseThrow().getProfileImageUrl();
 		assertThat(uploadedUrl).isNotBlank();
+	}
+
+	@Test
+	void allowsCorsPreflightForProfileImageUploadFromLocalFrontend() throws Exception {
+		mockMvc.perform(options(PROFILE_IMAGE_URL)
+				.header(HttpHeaders.ORIGIN, "http://localhost:5173")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PUT")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+					"authorization,content-type"))
+			.andExpect(status().is2xxSuccessful())
+			.andExpect(result -> {
+				assertThat(result.getResponse().getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
+					.isEqualTo("http://localhost:5173");
+				assertThat(result.getResponse().getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS))
+					.contains("PUT");
+			});
 	}
 
 	@Test
