@@ -204,7 +204,7 @@ public class UserController {
 	@Operation(
 		summary = "프로필 이미지 업로드",
 		description = "프로필 이미지를 업로드하고 교체된 이미지 URL을 반환합니다. "
-			+ "TODO: 현재는 S3 연동 전이라 NoOpImageStorageClient가 가짜 URL만 반환합니다."
+			+ "JPEG, PNG, WebP 형식을 지원하며 파일 크기는 최대 5MB입니다."
 	)
 	@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
 	@PutMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -3,6 +3,7 @@ package com.setpik.server.member.service;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.common.storage.ImageStorageClient;
+import com.setpik.server.common.storage.S3StorageProperties;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.domain.UserStatus;
 import com.setpik.server.member.dto.ProfileImageResponse;
@@ -15,6 +16,7 @@ import com.setpik.server.spotify.domain.SpotifyAccount;
 import com.setpik.server.spotify.repository.SpotifyAccountRepository;
 import java.time.ZoneId;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,18 +25,24 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserProfileService {
 
 	private static final ZoneId SERVICE_ZONE_ID = ZoneId.of("Asia/Seoul");
+	private static final long MAX_PROFILE_IMAGE_SIZE = 5L * 1024 * 1024;
+	private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
+		"image/jpeg", "image/png", "image/webp");
 	private final UserRepository userRepository;
 	private final SpotifyAccountRepository spotifyAccountRepository;
 	private final ImageStorageClient imageStorageClient;
+	private final S3StorageProperties storageProperties;
 
 	public UserProfileService(
 		UserRepository userRepository,
 		SpotifyAccountRepository spotifyAccountRepository,
-		ImageStorageClient imageStorageClient
+		ImageStorageClient imageStorageClient,
+		S3StorageProperties storageProperties
 	) {
 		this.userRepository = userRepository;
 		this.spotifyAccountRepository = spotifyAccountRepository;
 		this.imageStorageClient = imageStorageClient;
+		this.storageProperties = storageProperties;
 	}
 
 	/** 인증된 회원과 Spotify 연결 정보를 조회 전용 DTO로 조립한다. */
@@ -70,13 +78,15 @@ public class UserProfileService {
 			throw new BusinessException(ErrorCode.INVALID_REQUEST);
 		}
 		String contentType = image.getContentType();
-		if (contentType == null || !contentType.startsWith("image/")) {
+		if (!ALLOWED_IMAGE_TYPES.contains(contentType) || image.getSize() > MAX_PROFILE_IMAGE_SIZE) {
 			throw new BusinessException(ErrorCode.INVALID_REQUEST);
 		}
 
 		User user = getActiveUser(userId);
-		String uploadedUrl = imageStorageClient.upload(image);
+		String previousUrl = user.getProfileImageUrl();
+		String uploadedUrl = imageStorageClient.upload(userId, image);
 		user.updateProfileImageUrl(uploadedUrl);
+		imageStorageClient.delete(previousUrl);
 		return new ProfileImageResponse(user.getProfileImageUrl());
 	}
 
@@ -84,8 +94,10 @@ public class UserProfileService {
 	@Transactional
 	public ProfileImageResponse resetProfileImage(Long userId) {
 		User user = getActiveUser(userId);
+		String previousUrl = user.getProfileImageUrl();
 		user.resetProfileImageUrl();
-		return new ProfileImageResponse(user.getProfileImageUrl());
+		imageStorageClient.delete(previousUrl);
+		return new ProfileImageResponse(effectiveProfileImageUrl(user));
 	}
 
 	private User getActiveUser(Long userId) {
@@ -109,10 +121,16 @@ public class UserProfileService {
 				: user.getLastLoginAt().atZone(SERVICE_ZONE_ID).toOffsetDateTime(),
 			user.getNickname(),
 			user.getBirthDate(),
-			user.getProfileImageUrl(),
+			effectiveProfileImageUrl(user),
 			connectedAccount.isPresent(),
 			connectedAccount.map(this::toSpotifyProfile).orElse(null)
 		);
+	}
+
+	private String effectiveProfileImageUrl(User user) {
+		return user.getProfileImageUrl() == null
+			? storageProperties.defaultProfileUrl()
+			: user.getProfileImageUrl();
 	}
 
 	private SpotifyAccountProfileResponse toSpotifyProfile(SpotifyAccount account) {

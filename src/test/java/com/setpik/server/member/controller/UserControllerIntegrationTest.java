@@ -46,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 @ActiveProfiles("test")
 @Transactional
 class UserControllerIntegrationTest {
+	private static final String DEFAULT_PROFILE_IMAGE_URL =
+		"https://d23ywix9e5rzc2.cloudfront.net/default-profile.png";
 
 	private static final String PROFILE_URL = "/api/v1/users/me";
 	private static final String PROFILE_IMAGE_URL = "/api/v1/users/me/profile-image";
@@ -102,7 +104,7 @@ class UserControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.lastLoginAt").value("2026-07-28T09:10:11+09:00"))
 			.andExpect(jsonPath("$.result.nickname").doesNotExist())
 			.andExpect(jsonPath("$.result.birthDate").doesNotExist())
-			.andExpect(jsonPath("$.result.profileImageUrl").doesNotExist())
+			.andExpect(jsonPath("$.result.profileImageUrl").value(DEFAULT_PROFILE_IMAGE_URL))
 			.andExpect(jsonPath("$.result.spotifyConnected").value(true))
 			.andExpect(jsonPath("$.result.spotifyAccount.spotifyUserId").value("31abcde"))
 			.andExpect(jsonPath("$.result.spotifyAccount.displayName").value("setpik_user"))
@@ -240,7 +242,7 @@ class UserControllerIntegrationTest {
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.isSuccess").value(true))
-			.andExpect(jsonPath("$.result.profileImageUrl").doesNotExist());
+			.andExpect(jsonPath("$.result.profileImageUrl").value(DEFAULT_PROFILE_IMAGE_URL));
 
 		assertThat(userRepository.findById(user.getUserId()).orElseThrow().getProfileImageUrl()).isNull();
 	}
