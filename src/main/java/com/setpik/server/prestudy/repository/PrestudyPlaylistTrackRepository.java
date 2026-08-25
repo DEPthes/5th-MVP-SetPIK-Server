@@ -10,4 +10,6 @@ import java.util.List;
 public interface PrestudyPlaylistTrackRepository extends JpaRepository<PrestudyPlaylistTrack, PrestudyPlaylistTrackId> {
 
 	List<PrestudyPlaylistTrack> findByPrestudyPlaylistIdOrderByTrackOrderAsc(Long prestudyPlaylistId);
+
+	void deleteByPrestudyPlaylistId(Long prestudyPlaylistId);
 }

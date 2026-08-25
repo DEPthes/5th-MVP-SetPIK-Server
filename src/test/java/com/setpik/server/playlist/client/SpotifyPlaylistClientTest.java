@@ -44,6 +44,23 @@ class SpotifyPlaylistClientTest {
 	}
 
 	@Test
+	void removesPlaylistFromCurrentUsersLibrary() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
+
+		server.expect(requestTo(
+			"https://api.spotify.com/v1/me/library?uris=spotify:playlist:playlist-created"))
+			.andExpect(method(HttpMethod.DELETE))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+			.andRespond(withSuccess());
+
+		client.removePlaylistFromLibrary("access-token", "playlist-created");
+
+		server.verify();
+	}
+
+	@Test
 	void searchesRepresentativeTrackBecauseArtistTopTracksEndpointWasRemoved() {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

@@ -3,6 +3,7 @@ package com.setpik.server.prestudy.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.setpik.server.analysis.domain.AnalysisStatus;
@@ -14,6 +15,7 @@ import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.auth.client.SpotifyOAuthClient;
 import com.setpik.server.auth.security.TokenCipher;
+import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.performance.domain.Performance;
 import com.setpik.server.performance.domain.PerformanceArtist;
 import com.setpik.server.performance.domain.PerformanceMatch;
@@ -23,6 +25,7 @@ import com.setpik.server.performance.repository.PerformanceMatchArtistRepository
 import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.playlist.client.SpotifyPlaylistClient;
+import com.setpik.server.playlist.client.SpotifyPlaylistApiException;
 import com.setpik.server.playlist.domain.PlaylistTrack;
 import com.setpik.server.playlist.domain.Track;
 import com.setpik.server.playlist.domain.TrackArtist;
@@ -137,6 +140,51 @@ class PrestudyPlaylistServiceTest {
 				.isEqualTo("https://open.spotify.com/track/spotify-track-4001");
 			assertThat(response.previewUrl()).isEqualTo("https://preview.example.com/4001.mp3");
 		});
+	}
+
+	@Test
+	void removesSpotifyPlaylistBeforeDeletingSetpikRecords() {
+		PrestudyPlaylist playlist = mock(PrestudyPlaylist.class);
+		SpotifyAccount account = mock(SpotifyAccount.class);
+		when(playlist.getSpotifyPlaylistId()).thenReturn("spotify-playlist");
+		when(prestudyPlaylistRepository.findByPrestudyPlaylistIdAndUserId(701L, 1L))
+			.thenReturn(Optional.of(playlist));
+		when(spotifyAccountRepository.findByUserId(1L)).thenReturn(Optional.of(account));
+		when(account.getConnectionStatus()).thenReturn(ConnectionStatus.CONNECTED);
+		when(account.getTokenExpiresAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 20, 0));
+		when(account.getAccessTokenEncrypted()).thenReturn("encrypted-token");
+		when(tokenCipher.decrypt("encrypted-token")).thenReturn("access-token");
+
+		service.deletePrestudyPlaylist(1L, 701L);
+
+		verify(spotifyPlaylistClient)
+			.removePlaylistFromLibrary("access-token", "spotify-playlist");
+		verify(prestudyPlaylistTrackRepository).deleteByPrestudyPlaylistId(701L);
+		verify(prestudyPlaylistRepository).delete(playlist);
+	}
+
+	@Test
+	void keepsSetpikRecordsWhenSpotifyRemovalFails() {
+		PrestudyPlaylist playlist = mock(PrestudyPlaylist.class);
+		SpotifyAccount account = mock(SpotifyAccount.class);
+		when(playlist.getSpotifyPlaylistId()).thenReturn("spotify-playlist");
+		when(prestudyPlaylistRepository.findByPrestudyPlaylistIdAndUserId(701L, 1L))
+			.thenReturn(Optional.of(playlist));
+		when(spotifyAccountRepository.findByUserId(1L)).thenReturn(Optional.of(account));
+		when(account.getConnectionStatus()).thenReturn(ConnectionStatus.CONNECTED);
+		when(account.getTokenExpiresAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 20, 0));
+		when(account.getAccessTokenEncrypted()).thenReturn("encrypted-token");
+		when(tokenCipher.decrypt("encrypted-token")).thenReturn("access-token");
+		org.mockito.Mockito.doThrow(new SpotifyPlaylistApiException("failed"))
+			.when(spotifyPlaylistClient)
+			.removePlaylistFromLibrary("access-token", "spotify-playlist");
+
+		org.assertj.core.api.Assertions.assertThatThrownBy(
+			() -> service.deletePrestudyPlaylist(1L, 701L))
+			.isInstanceOf(BusinessException.class);
+
+		verify(prestudyPlaylistTrackRepository, never()).deleteByPrestudyPlaylistId(701L);
+		verify(prestudyPlaylistRepository, never()).delete(playlist);
 	}
 
 	@Test
