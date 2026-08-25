@@ -32,6 +32,8 @@ import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.TicketScheduleRepository;
 import com.setpik.server.performance.repository.VenueRepository;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistCardStatus;
+import com.setpik.server.prestudy.service.PrestudyPlaylistStatusLookupService;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,6 +59,8 @@ class PerformanceServiceTest {
 	private final PlaylistAnalysisRepository playlistAnalysisRepository = mock(PlaylistAnalysisRepository.class);
 	private final PerformanceMetadataLookupService performanceMetadataLookupService =
 		mock(PerformanceMetadataLookupService.class);
+	private final PrestudyPlaylistStatusLookupService prestudyPlaylistStatusLookupService =
+		mock(PrestudyPlaylistStatusLookupService.class);
 
 	private PerformanceService service;
 
@@ -72,7 +76,8 @@ class PerformanceServiceTest {
 			performanceMatchRepository,
 			performanceMatchArtistRepository,
 			playlistAnalysisRepository,
-			performanceMetadataLookupService
+			performanceMetadataLookupService,
+			prestudyPlaylistStatusLookupService
 		);
 	}
 
@@ -110,6 +115,9 @@ class PerformanceServiceTest {
 			.thenReturn(Map.of(1001L, "SOLO_CONCERT"));
 		when(performanceMetadataLookupService.artistNamesByPerformanceId(List.of(1001L)))
 			.thenReturn(Map.of(1001L, List.of("Artist A")));
+		when(prestudyPlaylistStatusLookupService.latestByPerformanceId(1L, List.of(1001L)))
+			.thenReturn(Map.of(1001L,
+				new PrestudyPlaylistCardStatus(701L, "COMPLETED", "spotify-playlist-701")));
 
 		PageResponse<PerformanceRecommendationResponse> result = service.getRecommendedPerformances(
 			1L, 501L, 0, 1, "matchedArtistCount,desc");
@@ -118,6 +126,9 @@ class PerformanceServiceTest {
 			assertThat(response.matchId()).isEqualTo(900L);
 			assertThat(response.performanceName()).isEqualTo("공연명");
 			assertThat(response.venueName()).isEqualTo("송도달빛축제공원");
+			assertThat(response.prestudyPlaylistId()).isEqualTo(701L);
+			assertThat(response.creationStatus()).isEqualTo("COMPLETED");
+			assertThat(response.spotifyPlaylistId()).isEqualTo("spotify-playlist-701");
 			assertThat(response.region()).isEqualTo("인천");
 			assertThat(response.artistNames()).containsExactly("Artist A");
 			assertThat(response.performanceType()).isEqualTo("SOLO_CONCERT");

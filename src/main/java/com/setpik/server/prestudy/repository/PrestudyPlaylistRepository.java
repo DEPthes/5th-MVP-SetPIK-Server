@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
+import java.util.List;
 
 /** 기본 CRUD는 JpaRepository가 제공하고 도메인별 조회 메서드는 여기에 추가한다. */
 public interface PrestudyPlaylistRepository extends JpaRepository<PrestudyPlaylist, Long> {
@@ -13,4 +14,9 @@ public interface PrestudyPlaylistRepository extends JpaRepository<PrestudyPlayli
 	Page<PrestudyPlaylist> findByUserId(Long userId, Pageable pageable);
 
 	Optional<PrestudyPlaylist> findByPrestudyPlaylistIdAndUserId(Long prestudyPlaylistId, Long userId);
+
+	List<PrestudyPlaylist> findByUserIdAndPerformanceIdInAndSpotifyDeletedFalseOrderByCreatedAtDescPrestudyPlaylistIdDesc(
+		Long userId,
+		List<Long> performanceIds
+	);
 }

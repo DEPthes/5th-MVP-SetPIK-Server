@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import com.setpik.server.prestudy.dto.PrestudyPlaylistCardStatus;
 
 public record FavoritePerformanceResponse(
 	Long favoriteId,
@@ -18,6 +19,9 @@ public record FavoritePerformanceResponse(
 	List<String> artistNames,
 	Integer matchedArtistCount,
 	Integer minTicketPrice,
+	Long prestudyPlaylistId,
+	String creationStatus,
+	String spotifyPlaylistId,
 	OffsetDateTime savedAt
 ) {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -26,7 +30,8 @@ public record FavoritePerformanceResponse(
 		FavoritePerformanceSummary summary,
 		String performanceType,
 		List<String> artistNames,
-		Integer matchedArtistCount
+		Integer matchedArtistCount,
+		PrestudyPlaylistCardStatus prestudyStatus
 	) {
 		return new FavoritePerformanceResponse(
 			summary.favoriteId(),
@@ -40,6 +45,9 @@ public record FavoritePerformanceResponse(
 			artistNames,
 			matchedArtistCount,
 			TicketPriceParser.parseMinPrice(summary.priceType(), summary.ticketPriceText()),
+			prestudyStatus == null ? null : prestudyStatus.prestudyPlaylistId(),
+			prestudyStatus == null ? null : prestudyStatus.creationStatus(),
+			prestudyStatus == null ? null : prestudyStatus.spotifyPlaylistId(),
 			summary.savedAt().atZone(KST).toOffsetDateTime()
 		);
 	}
