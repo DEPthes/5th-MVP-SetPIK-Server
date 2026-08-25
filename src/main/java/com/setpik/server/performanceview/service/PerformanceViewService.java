@@ -5,6 +5,7 @@ import com.setpik.server.common.api.PageResponse;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.performance.repository.PerformanceRepository;
+import com.setpik.server.performance.service.PerformanceMetadataLookupService;
 import com.setpik.server.performanceview.domain.PerformanceView;
 import com.setpik.server.performanceview.dto.PerformanceViewCreateRequest;
 import com.setpik.server.performanceview.dto.PerformanceViewCreateResponse;
@@ -14,6 +15,7 @@ import com.setpik.server.performanceview.repository.PerformanceViewRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,25 +29,40 @@ public class PerformanceViewService {
 	private final PerformanceViewRepository performanceViewRepository;
 	private final PlaylistAnalysisRepository analysisRepository;
 	private final PerformanceRepository performanceRepository;
+	private final PerformanceMetadataLookupService performanceMetadataLookupService;
 	private final Clock clock;
 
 	public PerformanceViewService(
 		PerformanceViewRepository performanceViewRepository,
 		PlaylistAnalysisRepository analysisRepository,
 		PerformanceRepository performanceRepository,
+		PerformanceMetadataLookupService performanceMetadataLookupService,
 		Clock clock
 	) {
 		this.performanceViewRepository = performanceViewRepository;
 		this.analysisRepository = analysisRepository;
 		this.performanceRepository = performanceRepository;
+		this.performanceMetadataLookupService = performanceMetadataLookupService;
 		this.clock = clock;
 	}
 
 	public PageResponse<PerformanceViewResponse> getRecentViews(Long userId, Pageable pageable) {
 		Page<PerformanceViewSummary> page =
 			performanceViewRepository.findRecentByUserId(userId, pageable);
+		List<Long> performanceIds = page.getContent().stream()
+			.map(PerformanceViewSummary::performanceId)
+			.distinct()
+			.toList();
+		Map<Long, String> performanceTypeByPerformanceId =
+			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
+		Map<Long, List<String>> artistNamesByPerformanceId =
+			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+
 		List<PerformanceViewResponse> content = page.getContent().stream()
-			.map(PerformanceViewResponse::from)
+			.map(summary -> PerformanceViewResponse.from(
+				summary,
+				performanceTypeByPerformanceId.get(summary.performanceId()),
+				artistNamesByPerformanceId.getOrDefault(summary.performanceId(), List.of())))
 			.toList();
 		return PageResponse.of(content, page);
 	}
