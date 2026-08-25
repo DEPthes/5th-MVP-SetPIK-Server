@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -65,6 +66,15 @@ public class PrestudyPlaylistController {
 		@AuthenticationPrincipal Jwt jwt
 	) {
 		return ApiResponse.success(prestudyPlaylistService.getPrestudyPlaylistTracks(userId(jwt), prestudyPlaylistId));
+	}
+
+	@DeleteMapping("/{prestudyPlaylistId}")
+	public ApiResponse<Void> deletePlaylist(
+		@PathVariable @Positive Long prestudyPlaylistId,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		prestudyPlaylistService.deletePrestudyPlaylist(userId(jwt), prestudyPlaylistId);
+		return ApiResponse.success("예습 플레이리스트가 삭제되었습니다.", null);
 	}
 
 	private Pageable toPageable(int page, int size, String sort) {

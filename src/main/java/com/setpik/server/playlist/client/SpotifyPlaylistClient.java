@@ -201,6 +201,27 @@ public class SpotifyPlaylistClient {
 		}
 	}
 
+	/** Spotify에서 플레이리스트를 영구 삭제할 수 없어 현재 사용자의 라이브러리에서 제거한다. */
+	public void removePlaylistFromLibrary(String accessToken, String spotifyPlaylistId) {
+		try {
+			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/me/library")
+				.queryParam("uris", "spotify:playlist:" + spotifyPlaylistId)
+				.build()
+				.encode()
+				.toUri();
+			restClient.delete()
+				.uri(uri)
+				.headers(headers -> headers.setBearerAuth(accessToken))
+				.retrieve()
+				.toBodilessEntity();
+		} catch (RestClientResponseException exception) {
+			logSpotifyError(exception);
+			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 제거에 실패했습니다.", exception);
+		} catch (RestClientException exception) {
+			throw new SpotifyPlaylistApiException("Spotify 플레이리스트 제거에 실패했습니다.", exception);
+		}
+	}
+
 	/** 매칭된 아티스트의 Spotify Top Tracks 중 대표곡 1곡을 조회한다. 실패 시 null을 반환한다. */
 	public SpotifyTrackSnapshot fetchRepresentativeTrack(
 		String accessToken,

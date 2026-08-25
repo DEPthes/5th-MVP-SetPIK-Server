@@ -197,6 +197,28 @@ public class PrestudyPlaylistService {
 			.toList();
 	}
 
+	@Transactional
+	public void deletePrestudyPlaylist(Long userId, Long prestudyPlaylistId) {
+		PrestudyPlaylist playlist = findOwned(userId, prestudyPlaylistId);
+		String spotifyPlaylistId = playlist.getSpotifyPlaylistId();
+
+		if (spotifyPlaylistId != null && !spotifyPlaylistId.isBlank()) {
+			SpotifyAccount account = findConnectedSpotifyAccount(userId);
+			String accessToken = resolveAccessToken(account);
+			try {
+				spotifyPlaylistClient.removePlaylistFromLibrary(accessToken, spotifyPlaylistId);
+			} catch (SpotifyPlaylistApiException exception) {
+				if (exception.requiresReauthentication()) {
+					throw new BusinessException(ErrorCode.SPOTIFY_REAUTHENTICATION_REQUIRED);
+				}
+				throw new BusinessException(ErrorCode.SPOTIFY_API_ERROR);
+			}
+		}
+
+		prestudyPlaylistTrackRepository.deleteByPrestudyPlaylistId(prestudyPlaylistId);
+		prestudyPlaylistRepository.delete(playlist);
+	}
+
 	/** Spotify 대표곡을 내부 Track ID로 반환해야 하므로 조회 중 캐시 저장을 허용한다. */
 	@Transactional
 	public PrestudyCandidateResponse getCandidates(Long userId, Long performanceId, Long analysisId) {
