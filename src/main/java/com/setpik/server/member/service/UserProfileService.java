@@ -5,6 +5,7 @@ import com.setpik.server.common.exception.ErrorCode;
 import com.setpik.server.member.domain.User;
 import com.setpik.server.member.domain.UserStatus;
 import com.setpik.server.member.dto.SpotifyAccountProfileResponse;
+import com.setpik.server.member.dto.UpdateUserProfileRequest;
 import com.setpik.server.member.dto.UserProfileResponse;
 import com.setpik.server.member.repository.UserRepository;
 import com.setpik.server.spotify.domain.ConnectionStatus;
@@ -33,13 +34,40 @@ public class UserProfileService {
 	/** 인증된 회원과 Spotify 연결 정보를 조회 전용 DTO로 조립한다. */
 	@Transactional(readOnly = true)
 	public UserProfileResponse getMyProfile(Long userId) {
+		User user = getActiveUser(userId);
+		return toProfileResponse(user);
+	}
+
+	/** nickname, birthDate를 각각 전달된 값만 개별적으로 수정한다. */
+	@Transactional
+	public UserProfileResponse updateMyProfile(Long userId, UpdateUserProfileRequest request) {
+		User user = getActiveUser(userId);
+
+		if (request.nickname() != null) {
+			String trimmedNickname = request.nickname().trim();
+			if (trimmedNickname.isEmpty()) {
+				throw new BusinessException(ErrorCode.INVALID_REQUEST);
+			}
+			user.updateNickname(trimmedNickname);
+		}
+		if (request.birthDate() != null) {
+			user.updateBirthDate(request.birthDate());
+		}
+
+		return toProfileResponse(user);
+	}
+
+	private User getActiveUser(Long userId) {
 		User user = userRepository.findById(userId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 		if (user.getStatus() != UserStatus.ACTIVE) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED);
 		}
+		return user;
+	}
 
-		Optional<SpotifyAccount> connectedAccount = spotifyAccountRepository.findByUserId(userId)
+	private UserProfileResponse toProfileResponse(User user) {
+		Optional<SpotifyAccount> connectedAccount = spotifyAccountRepository.findByUserId(user.getUserId())
 			.filter(account -> account.getConnectionStatus() == ConnectionStatus.CONNECTED);
 
 		return new UserProfileResponse(
@@ -48,6 +76,8 @@ public class UserProfileService {
 			user.getLastLoginAt() == null
 				? null
 				: user.getLastLoginAt().atZone(SERVICE_ZONE_ID).toOffsetDateTime(),
+			user.getNickname(),
+			user.getBirthDate(),
 			connectedAccount.isPresent(),
 			connectedAccount.map(this::toSpotifyProfile).orElse(null)
 		);
