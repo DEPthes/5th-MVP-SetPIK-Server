@@ -157,10 +157,31 @@ public class PrestudyPlaylistService {
 		findOwned(userId, prestudyPlaylistId);
 		List<PrestudyPlaylistTrack> playlistTracks = prestudyPlaylistTrackRepository
 			.findByPrestudyPlaylistIdOrderByTrackOrderAsc(prestudyPlaylistId);
+		if (playlistTracks.isEmpty()) {
+			return List.of();
+		}
+		List<Long> trackIds = playlistTracks.stream()
+			.map(PrestudyPlaylistTrack::getTrackId)
+			.toList();
 		Map<Long, Track> trackById = trackRepository
-			.findAllById(playlistTracks.stream().map(PrestudyPlaylistTrack::getTrackId).toList())
+			.findAllById(trackIds)
 			.stream()
 			.collect(Collectors.toMap(Track::getTrackId, Function.identity()));
+		List<TrackArtist> trackArtists = trackArtistRepository
+			.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(trackIds);
+		Map<Long, Artist> artistById = artistRepository
+			.findAllById(trackArtists.stream().map(TrackArtist::getArtistId).distinct().toList())
+			.stream()
+			.collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
+		Map<Long, List<String>> artistNamesByTrackId = new LinkedHashMap<>();
+		for (TrackArtist trackArtist : trackArtists) {
+			Artist artist = artistById.get(trackArtist.getArtistId());
+			if (artist != null) {
+				artistNamesByTrackId
+					.computeIfAbsent(trackArtist.getTrackId(), ignored -> new ArrayList<>())
+					.add(artist.getArtistName());
+			}
+		}
 
 		return playlistTracks.stream()
 			.map(playlistTrack -> {
@@ -168,7 +189,10 @@ public class PrestudyPlaylistService {
 				if (track == null) {
 					throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
 				}
-				return PrestudyPlaylistTrackResponse.of(playlistTrack, track);
+				String artistName = String.join(", ",
+					artistNamesByTrackId.getOrDefault(track.getTrackId(), List.of()));
+				return PrestudyPlaylistTrackResponse.of(
+					playlistTrack, track, artistName.isBlank() ? null : artistName);
 			})
 			.toList();
 	}
