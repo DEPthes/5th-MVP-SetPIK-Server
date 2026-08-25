@@ -63,6 +63,7 @@ spotify:
       - playlist-modify-public
     state-cookie-name: setpik_spotify_oauth_state
     frontend-cookie-name: setpik_spotify_frontend_origin
+    cookie-path: ${SPOTIFY_COOKIE_PATH:/api/v1/auth/spotify}
     state-cookie-max-age: 10m
     secure-cookie: ${SPOTIFY_COOKIE_SECURE:false}
 
@@ -73,7 +74,7 @@ setpik:
     token-encryption-key: ${TOKEN_ENCRYPTION_KEY:}
     refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION:14d}
     refresh-cookie-name: refreshToken
-    refresh-cookie-path: /api/v1/auth
+    refresh-cookie-path: ${AUTH_COOKIE_PATH:/api/v1/auth}
     secure-cookie: ${AUTH_COOKIE_SECURE:false}
     refresh-cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
     success-redirect-uri: ${OAUTH_SUCCESS_REDIRECT_URI:http://localhost:5173/oauth/success}
