@@ -13,7 +13,7 @@ import com.setpik.server.artist.domain.ArtistAliasResolutionStatus;
 import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.SpotifyArtistAliasSyncStatusRepository;
-import com.setpik.server.artist.repository.SpotifyArtistNameAliasRepository;
+import com.setpik.server.artist.domain.SpotifyArtistNameAlias;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +28,8 @@ class ArtistAliasSyncServiceTest {
 		ArtistAliasRepository aliases = mock(ArtistAliasRepository.class);
 		SpotifyArtistAliasSyncStatusRepository statuses =
 			mock(SpotifyArtistAliasSyncStatusRepository.class);
-		SpotifyArtistNameAliasRepository nameAliases = mock(SpotifyArtistNameAliasRepository.class);
+		SpotifyArtistNameAliasPersistenceService nameAliasPersistence =
+			mock(SpotifyArtistNameAliasPersistenceService.class);
 		WikidataArtistAliasClient client = mock(WikidataArtistAliasClient.class);
 		Artist spotifyArtist = mock(Artist.class);
 		Artist kopisArtist = mock(Artist.class);
@@ -49,7 +50,7 @@ class ArtistAliasSyncServiceTest {
 		when(artists.findUnresolvedKopisMusicArtistIds("음악", 99)).thenReturn(List.of());
 
 		ArtistAliasSyncService service = new ArtistAliasSyncService(
-			artists, aliases, client, statuses, nameAliases);
+			artists, aliases, client, statuses, nameAliasPersistence);
 		var response = service.syncPendingAliases(100);
 
 		assertThat(response.candidateArtistCount()).isEqualTo(1);
@@ -63,7 +64,13 @@ class ArtistAliasSyncServiceTest {
 		assertThat(aliasCaptor.getValue().getResolutionStatus())
 			.isEqualTo(ArtistAliasResolutionStatus.RESOLVED);
 		verify(statuses).save(any());
-		verify(nameAliases).deleteByArtistId(1L);
-		verify(nameAliases).saveAll(any());
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<SpotifyArtistNameAlias>> nameAliasCaptor =
+			ArgumentCaptor.forClass(List.class);
+		verify(nameAliasPersistence).replaceAliases(org.mockito.ArgumentMatchers.eq(1L),
+			nameAliasCaptor.capture());
+		assertThat(nameAliasCaptor.getValue())
+			.extracting(SpotifyArtistNameAlias::getAliasName)
+			.containsExactly("프로미스", "프로미스9", "프로미스나인");
 	}
 }

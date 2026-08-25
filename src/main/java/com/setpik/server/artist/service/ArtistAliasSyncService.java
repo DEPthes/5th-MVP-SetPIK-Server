@@ -10,7 +10,6 @@ import com.setpik.server.artist.dto.ArtistAliasSyncResponse;
 import com.setpik.server.artist.repository.ArtistAliasRepository;
 import com.setpik.server.artist.repository.ArtistRepository;
 import com.setpik.server.artist.repository.SpotifyArtistAliasSyncStatusRepository;
-import com.setpik.server.artist.repository.SpotifyArtistNameAliasRepository;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -34,20 +33,20 @@ public class ArtistAliasSyncService {
 	private final ArtistAliasRepository artistAliasRepository;
 	private final WikidataArtistAliasClient wikidataClient;
 	private final SpotifyArtistAliasSyncStatusRepository reverseSyncStatusRepository;
-	private final SpotifyArtistNameAliasRepository nameAliasRepository;
+	private final SpotifyArtistNameAliasPersistenceService nameAliasPersistenceService;
 
 	public ArtistAliasSyncService(
 		ArtistRepository artistRepository,
 		ArtistAliasRepository artistAliasRepository,
 		WikidataArtistAliasClient wikidataClient,
 		SpotifyArtistAliasSyncStatusRepository reverseSyncStatusRepository,
-		SpotifyArtistNameAliasRepository nameAliasRepository
+		SpotifyArtistNameAliasPersistenceService nameAliasPersistenceService
 	) {
 		this.artistRepository = artistRepository;
 		this.artistAliasRepository = artistAliasRepository;
 		this.wikidataClient = wikidataClient;
 		this.reverseSyncStatusRepository = reverseSyncStatusRepository;
-		this.nameAliasRepository = nameAliasRepository;
+		this.nameAliasPersistenceService = nameAliasPersistenceService;
 	}
 
 	public ArtistAliasSyncResponse syncPendingAliases(int requestedLimit) {
@@ -98,7 +97,6 @@ public class ArtistAliasSyncService {
 
 	private void saveVerifiedNames(Long artistId,
 		WikidataArtistAliasClient.ReverseLookupResult result) {
-		nameAliasRepository.deleteByArtistId(artistId);
 		List<SpotifyArtistNameAlias> aliases = result.koreanNames().stream()
 			.filter(name -> name != null && !name.isBlank())
 			.collect(Collectors.toMap(
@@ -109,7 +107,7 @@ public class ArtistAliasSyncService {
 				LinkedHashMap::new
 			))
 			.values().stream().toList();
-		nameAliasRepository.saveAll(aliases);
+		nameAliasPersistenceService.replaceAliases(artistId, aliases);
 	}
 
 	private String normalizeTitleName(String value) {
