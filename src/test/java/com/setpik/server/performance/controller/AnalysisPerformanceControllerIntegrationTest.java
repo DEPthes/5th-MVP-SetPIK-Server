@@ -91,7 +91,11 @@ class AnalysisPerformanceControllerIntegrationTest {
 			List.of(new PerformanceRecommendationResponse(
 				900L, 1001L, "2026 인천 펜타포트 록 페스티벌",
 				(byte) 1, 2, (byte) 40,
-				"플레이리스트 아티스트 2명이 직접 출연합니다."
+				"플레이리스트 아티스트 2명이 직접 출연합니다.",
+				"https://images.example.com/performances/1001.jpg",
+				java.time.LocalDate.of(2026, 8, 15), java.time.LocalDate.of(2026, 8, 17),
+				"송도달빛축제공원", "인천", List.of("Artist A"),
+				"FESTIVAL", "ON_SALE", 80000
 			)),
 			0, 20, 1, 1, false
 		);
@@ -113,6 +117,12 @@ class AnalysisPerformanceControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.content[0].matchPriority").value(1))
 			.andExpect(jsonPath("$.result.content[0].matchedArtistCount").value(2))
 			.andExpect(jsonPath("$.result.content[0].matchRatio").value(40))
+			.andExpect(jsonPath("$.result.content[0].venueName").value("송도달빛축제공원"))
+			.andExpect(jsonPath("$.result.content[0].region").value("인천"))
+			.andExpect(jsonPath("$.result.content[0].artistNames[0]").value("Artist A"))
+			.andExpect(jsonPath("$.result.content[0].performanceType").value("FESTIVAL"))
+			.andExpect(jsonPath("$.result.content[0].performanceStatus").value("ON_SALE"))
+			.andExpect(jsonPath("$.result.content[0].minTicketPrice").value(80000))
 			.andExpect(jsonPath("$.result.page").value(0))
 			.andExpect(jsonPath("$.result.size").value(20))
 			.andExpect(jsonPath("$.result.totalElements").value(1))

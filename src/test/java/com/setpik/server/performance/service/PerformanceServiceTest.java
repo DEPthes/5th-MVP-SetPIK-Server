@@ -33,6 +33,7 @@ import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.TicketScheduleRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,8 @@ class PerformanceServiceTest {
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository =
 		mock(PerformanceMatchArtistRepository.class);
 	private final PlaylistAnalysisRepository playlistAnalysisRepository = mock(PlaylistAnalysisRepository.class);
+	private final PerformanceMetadataLookupService performanceMetadataLookupService =
+		mock(PerformanceMetadataLookupService.class);
 
 	private PerformanceService service;
 
@@ -68,7 +71,8 @@ class PerformanceServiceTest {
 			artistAliasRepository,
 			performanceMatchRepository,
 			performanceMatchArtistRepository,
-			playlistAnalysisRepository
+			playlistAnalysisRepository,
+			performanceMetadataLookupService
 		);
 	}
 
@@ -88,7 +92,24 @@ class PerformanceServiceTest {
 		Performance performance = mock(Performance.class);
 		when(performance.getPerformanceId()).thenReturn(1001L);
 		when(performance.getPerformanceName()).thenReturn("공연명");
+		when(performance.getVenueId()).thenReturn(77L);
+		when(performance.getPosterUrl()).thenReturn("https://images.example.com/performances/1001.jpg");
+		when(performance.getStartDate()).thenReturn(java.time.LocalDate.of(2026, 8, 15));
+		when(performance.getEndDate()).thenReturn(java.time.LocalDate.of(2026, 8, 17));
+		when(performance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
+		when(performance.getMinTicketPrice()).thenReturn(80000);
 		when(performanceRepository.findAllById(List.of(1001L))).thenReturn(List.of(performance));
+
+		Venue venue = mock(Venue.class);
+		when(venue.getVenueId()).thenReturn(77L);
+		when(venue.getVenueName()).thenReturn("송도달빛축제공원");
+		when(venue.getCity()).thenReturn("인천");
+		when(venueRepository.findAllById(List.of(77L))).thenReturn(List.of(venue));
+
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, "SOLO_CONCERT"));
+		when(performanceMetadataLookupService.artistNamesByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, List.of("Artist A")));
 
 		PageResponse<PerformanceRecommendationResponse> result = service.getRecommendedPerformances(
 			1L, 501L, 0, 1, "matchedArtistCount,desc");
@@ -96,6 +117,12 @@ class PerformanceServiceTest {
 		assertThat(result.content()).singleElement().satisfies(response -> {
 			assertThat(response.matchId()).isEqualTo(900L);
 			assertThat(response.performanceName()).isEqualTo("공연명");
+			assertThat(response.venueName()).isEqualTo("송도달빛축제공원");
+			assertThat(response.region()).isEqualTo("인천");
+			assertThat(response.artistNames()).containsExactly("Artist A");
+			assertThat(response.performanceType()).isEqualTo("SOLO_CONCERT");
+			assertThat(response.performanceStatus()).isEqualTo("ON_SALE");
+			assertThat(response.minTicketPrice()).isEqualTo(80000);
 		});
 		assertThat(result.hasNext()).isTrue();
 		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);

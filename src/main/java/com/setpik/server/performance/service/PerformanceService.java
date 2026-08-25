@@ -52,6 +52,7 @@ public class PerformanceService {
 	private final PerformanceMatchRepository performanceMatchRepository;
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository;
 	private final PlaylistAnalysisRepository playlistAnalysisRepository;
+	private final PerformanceMetadataLookupService performanceMetadataLookupService;
 
 	public PerformanceService(
 		PerformanceRepository performanceRepository,
@@ -62,7 +63,8 @@ public class PerformanceService {
 		ArtistAliasRepository artistAliasRepository,
 		PerformanceMatchRepository performanceMatchRepository,
 		PerformanceMatchArtistRepository performanceMatchArtistRepository,
-		PlaylistAnalysisRepository playlistAnalysisRepository
+		PlaylistAnalysisRepository playlistAnalysisRepository,
+		PerformanceMetadataLookupService performanceMetadataLookupService
 	) {
 		this.performanceRepository = performanceRepository;
 		this.venueRepository = venueRepository;
@@ -73,6 +75,7 @@ public class PerformanceService {
 		this.performanceMatchRepository = performanceMatchRepository;
 		this.performanceMatchArtistRepository = performanceMatchArtistRepository;
 		this.playlistAnalysisRepository = playlistAnalysisRepository;
+		this.performanceMetadataLookupService = performanceMetadataLookupService;
 	}
 
 	public PerformanceDetailResponse getPerformance(Long performanceId) {
@@ -141,10 +144,18 @@ public class PerformanceService {
 			matches = performanceMatchRepository.findVisibleByAnalysisId(analysisId, pageable);
 		}
 
-		Map<Long, Performance> performanceById = performanceRepository
-			.findAllById(matches.getContent().stream().map(PerformanceMatch::getPerformanceId).distinct().toList())
-			.stream()
+		List<Long> performanceIds = matches.getContent().stream()
+			.map(PerformanceMatch::getPerformanceId).distinct().toList();
+		Map<Long, Performance> performanceById = performanceRepository.findAllById(performanceIds).stream()
 			.collect(Collectors.toMap(Performance::getPerformanceId, Function.identity()));
+		Map<Long, Venue> venueById = venueRepository
+			.findAllById(performanceById.values().stream().map(Performance::getVenueId).distinct().toList())
+			.stream()
+			.collect(Collectors.toMap(Venue::getVenueId, Function.identity()));
+		Map<Long, String> performanceTypeByPerformanceId =
+			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
+		Map<Long, List<String>> artistNamesByPerformanceId =
+			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
 
 		List<PerformanceRecommendationResponse> content = matches.getContent().stream()
 			.map(match -> {
@@ -152,7 +163,13 @@ public class PerformanceService {
 				if (performance == null) {
 					throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
 				}
-				return PerformanceRecommendationResponse.of(match, performance.getPerformanceName());
+				return PerformanceRecommendationResponse.of(
+					match,
+					performance,
+					venueById.get(performance.getVenueId()),
+					performanceTypeByPerformanceId.get(performance.getPerformanceId()),
+					artistNamesByPerformanceId.getOrDefault(performance.getPerformanceId(), List.of())
+				);
 			})
 			.toList();
 
