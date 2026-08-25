@@ -115,6 +115,10 @@ class PerformanceServiceTest {
 			.thenReturn(Map.of(1001L, "SOLO_CONCERT"));
 		when(performanceMetadataLookupService.artistNamesByPerformanceId(List.of(1001L)))
 			.thenReturn(Map.of(1001L, List.of("Artist A")));
+		when(performanceMetadataLookupService.genreNameByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, "대중음악"));
+		when(performanceMetadataLookupService.tagCodesByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, List.of("INTERNATIONAL")));
 		when(prestudyPlaylistStatusLookupService.latestByPerformanceId(1L, List.of(1001L)))
 			.thenReturn(Map.of(1001L,
 				new PrestudyPlaylistCardStatus(701L, "COMPLETED", "spotify-playlist-701")));
@@ -132,6 +136,8 @@ class PerformanceServiceTest {
 			assertThat(response.region()).isEqualTo("인천");
 			assertThat(response.artistNames()).containsExactly("Artist A");
 			assertThat(response.performanceType()).isEqualTo("SOLO_CONCERT");
+			assertThat(response.genreName()).isEqualTo("대중음악");
+			assertThat(response.tags()).containsExactly("INTERNATIONAL");
 			assertThat(response.performanceStatus()).isEqualTo("ON_SALE");
 			assertThat(response.minTicketPrice()).isEqualTo(80000);
 		});
@@ -206,6 +212,12 @@ class PerformanceServiceTest {
 		when(spotifyArtist.getImageUrl()).thenReturn("https://images.example.com/artists/7.jpg");
 		when(artistRepository.findBySpotifyArtistIdIn(any()))
 			.thenReturn(List.of(spotifyArtist));
+		when(performanceMetadataLookupService.genreNameByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, "대중음악"));
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, "FESTIVAL"));
+		when(performanceMetadataLookupService.tagCodesByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, List.of("INTERNATIONAL")));
 
 		PerformanceDetailResponse result = service.getPerformance(1001L);
 
@@ -216,6 +228,9 @@ class PerformanceServiceTest {
 		assertThat(result.ticketPriceText()).isEqualTo("1일권 120,000원");
 		assertThat(result.runningTime()).isEqualTo("180분");
 		assertThat(result.ageRestriction()).isEqualTo("만 12세 이상");
+		assertThat(result.genreName()).isEqualTo("대중음악");
+		assertThat(result.performanceType()).isEqualTo("FESTIVAL");
+		assertThat(result.tags()).containsExactly("INTERNATIONAL");
 		assertThat(result.artists()).singleElement().satisfies(response -> {
 			assertThat(response.artistId()).isEqualTo(7L);
 			assertThat(response.artistName()).isEqualTo("Artist A");

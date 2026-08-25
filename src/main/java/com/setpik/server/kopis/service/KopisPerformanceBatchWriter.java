@@ -12,12 +12,16 @@ import com.setpik.server.performance.domain.PerformanceGenre;
 import com.setpik.server.performance.domain.PerformanceStatus;
 import com.setpik.server.performance.domain.PerformanceType;
 import com.setpik.server.performance.domain.PerformanceTypeMap;
+import com.setpik.server.performance.domain.PerformanceTag;
+import com.setpik.server.performance.domain.PerformanceTagMap;
 import com.setpik.server.performance.domain.Venue;
 import com.setpik.server.performance.repository.PerformanceArtistRepository;
 import com.setpik.server.performance.repository.PerformanceGenreRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
 import com.setpik.server.performance.repository.PerformanceTypeRepository;
+import com.setpik.server.performance.repository.PerformanceTagRepository;
+import com.setpik.server.performance.repository.PerformanceTagMapRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,6 +41,7 @@ public class KopisPerformanceBatchWriter {
 	private static final String SOLO_CONCERT = "SOLO_CONCERT";
 	private static final String JOINT_CONCERT = "JOINT_CONCERT";
 	private static final String FESTIVAL = "FESTIVAL";
+	private static final String INTERNATIONAL = "INTERNATIONAL";
 
 	private final VenueRepository venueRepository;
 	private final PerformanceRepository performanceRepository;
@@ -46,6 +51,8 @@ public class KopisPerformanceBatchWriter {
 	private final PerformanceGenreRepository performanceGenreRepository;
 	private final PerformanceTypeRepository performanceTypeRepository;
 	private final PerformanceTypeMapRepository performanceTypeMapRepository;
+	private final PerformanceTagRepository performanceTagRepository;
+	private final PerformanceTagMapRepository performanceTagMapRepository;
 
 	public KopisPerformanceBatchWriter(
 		VenueRepository venueRepository,
@@ -55,7 +62,9 @@ public class KopisPerformanceBatchWriter {
 		PerformanceArtistRepository performanceArtistRepository,
 		PerformanceGenreRepository performanceGenreRepository,
 		PerformanceTypeRepository performanceTypeRepository,
-		PerformanceTypeMapRepository performanceTypeMapRepository
+		PerformanceTypeMapRepository performanceTypeMapRepository,
+		PerformanceTagRepository performanceTagRepository,
+		PerformanceTagMapRepository performanceTagMapRepository
 	) {
 		this.venueRepository = venueRepository;
 		this.performanceRepository = performanceRepository;
@@ -65,6 +74,8 @@ public class KopisPerformanceBatchWriter {
 		this.performanceGenreRepository = performanceGenreRepository;
 		this.performanceTypeRepository = performanceTypeRepository;
 		this.performanceTypeMapRepository = performanceTypeMapRepository;
+		this.performanceTagRepository = performanceTagRepository;
+		this.performanceTagMapRepository = performanceTagMapRepository;
 	}
 
 	/** 네트워크 호출 없이 전달받은 KOPIS 데이터를 한 번의 짧은 트랜잭션으로 저장한다. */
@@ -107,7 +118,8 @@ public class KopisPerformanceBatchWriter {
 		Map<String, Artist> artists = upsertArtists(details);
 		Map<String, Genre> genres = upsertGenres(details);
 		Map<String, PerformanceType> performanceTypes = upsertPerformanceTypes();
-		replaceMappings(details, performances, artists, genres, performanceTypes);
+		Map<String, PerformanceTag> performanceTags = upsertPerformanceTags();
+		replaceMappings(details, performances, artists, genres, performanceTypes, performanceTags);
 
 		return new KopisBatchWriteResult(details.size() - updatedCount, updatedCount);
 	}
@@ -209,12 +221,25 @@ public class KopisPerformanceBatchWriter {
 		return types;
 	}
 
+	private Map<String, PerformanceTag> upsertPerformanceTags() {
+		Map<String, PerformanceTag> tags = performanceTagRepository
+			.findByTagCodeIn(List.of(INTERNATIONAL)).stream()
+			.collect(Collectors.toMap(PerformanceTag::getTagCode, Function.identity()));
+		if (!tags.containsKey(INTERNATIONAL)) {
+			PerformanceTag created = performanceTagRepository.saveAndFlush(
+				new PerformanceTag(INTERNATIONAL, "내한 공연"));
+			tags.put(INTERNATIONAL, created);
+		}
+		return tags;
+	}
+
 	private void replaceMappings(
 		List<KopisPerformanceDetail> details,
 		List<Performance> performances,
 		Map<String, Artist> artists,
 		Map<String, Genre> genres,
-		Map<String, PerformanceType> performanceTypes
+		Map<String, PerformanceType> performanceTypes,
+		Map<String, PerformanceTag> performanceTags
 	) {
 		Map<String, Performance> performanceByKopisId = performances.stream()
 			.collect(Collectors.toMap(Performance::getKopisPerformanceId, Function.identity()));
@@ -222,10 +247,12 @@ public class KopisPerformanceBatchWriter {
 		performanceArtistRepository.deleteByPerformanceIdIn(performanceIds);
 		performanceGenreRepository.deleteByPerformanceIdIn(performanceIds);
 		performanceTypeMapRepository.deleteByPerformanceIdIn(performanceIds);
+		performanceTagMapRepository.deleteByPerformanceIdIn(performanceIds);
 
 		List<PerformanceArtist> artistMappings = new ArrayList<>();
 		List<PerformanceGenre> genreMappings = new ArrayList<>();
 		List<PerformanceTypeMap> typeMappings = new ArrayList<>();
+		List<PerformanceTagMap> tagMappings = new ArrayList<>();
 		for (KopisPerformanceDetail detail : details) {
 			Long performanceId = performanceByKopisId.get(detail.kopisPerformanceId()).getPerformanceId();
 			Set<Long> mappedArtistIds = new LinkedHashSet<>();
@@ -251,10 +278,18 @@ public class KopisPerformanceBatchWriter {
 				typeMappings.add(new PerformanceTypeMap(
 					performanceId, performanceType.getPerformanceTypeId()));
 			}
+			if (detail.international()) {
+				PerformanceTag tag = performanceTags.get(INTERNATIONAL);
+				if (tag != null) {
+					tagMappings.add(new PerformanceTagMap(
+						performanceId, tag.getPerformanceTagId()));
+				}
+			}
 		}
 		performanceArtistRepository.saveAll(artistMappings);
 		performanceGenreRepository.saveAll(genreMappings);
 		performanceTypeMapRepository.saveAll(typeMappings);
+		performanceTagMapRepository.saveAll(tagMappings);
 	}
 
 	private String facilityId(KopisPerformanceDetail detail) {

@@ -70,6 +70,10 @@ public class FavoritePerformanceService {
 			performanceMetadataLookupService.performanceTypeCodeByPerformanceId(performanceIds);
 		Map<Long, List<String>> artistNamesByPerformanceId =
 			performanceMetadataLookupService.artistNamesByPerformanceId(performanceIds);
+		Map<Long, String> genreNameByPerformanceId =
+			performanceMetadataLookupService.genreNameByPerformanceId(performanceIds);
+		Map<Long, List<String>> tagsByPerformanceId =
+			performanceMetadataLookupService.tagCodesByPerformanceId(performanceIds);
 		Map<Long, Integer> matchedArtistCountByPerformanceId =
 			matchedArtistCountsForLatestAnalysis(userId, performanceIds);
 		Map<Long, PrestudyPlaylistCardStatus> prestudyStatusByPerformanceId =
@@ -79,6 +83,8 @@ public class FavoritePerformanceService {
 			.map(summary -> FavoritePerformanceResponse.from(
 				summary,
 				performanceTypeByPerformanceId.get(summary.performanceId()),
+				genreNameByPerformanceId.get(summary.performanceId()),
+				tagsByPerformanceId.getOrDefault(summary.performanceId(), List.of()),
 				artistNamesByPerformanceId.getOrDefault(summary.performanceId(), List.of()),
 				matchedArtistCountByPerformanceId.getOrDefault(summary.performanceId(), 0),
 				prestudyStatusByPerformanceId.get(summary.performanceId())))

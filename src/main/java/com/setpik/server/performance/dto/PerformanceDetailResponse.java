@@ -19,6 +19,9 @@ public record PerformanceDetailResponse(
 	String runningTime,
 	String ageRestriction,
 	String performanceStatus,
+	String genreName,
+	String performanceType,
+	List<String> tags,
 	VenueResponse venue,
 	List<ArtistResponse> artists
 ) {
@@ -33,7 +36,7 @@ public record PerformanceDetailResponse(
 		VenueResponse venue
 	) {
 		this(performanceId, performanceName, startDate, endDate, posterUrl, bookingUrl,
-			null, null, null, performanceStatus, venue, List.of());
+			null, null, null, performanceStatus, null, null, List.of(), venue, List.of());
 	}
 
 	public static PerformanceDetailResponse of(
@@ -41,7 +44,10 @@ public record PerformanceDetailResponse(
 		Venue venue,
 		List<PerformanceArtist> lineup,
 		Map<Long, Artist> artistById,
-		Map<Long, String> aliasImageUrlByArtistId
+		Map<Long, String> aliasImageUrlByArtistId,
+		String genreName,
+		String performanceType,
+		List<String> tags
 	) {
 		return new PerformanceDetailResponse(
 			performance.getPerformanceId(),
@@ -54,6 +60,9 @@ public record PerformanceDetailResponse(
 			performance.getRunningTime(),
 			performance.getAgeRestriction(),
 			performance.getPerformanceStatus().name(),
+			genreName,
+			performanceType,
+			tags,
 			VenueResponse.from(venue),
 			lineup.stream()
 				.filter(mapping -> artistById.containsKey(mapping.getArtistId()))

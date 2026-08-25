@@ -17,6 +17,8 @@ import com.setpik.server.performance.repository.PerformanceGenreRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.PerformanceTypeMapRepository;
 import com.setpik.server.performance.repository.PerformanceTypeRepository;
+import com.setpik.server.performance.repository.PerformanceTagRepository;
+import com.setpik.server.performance.repository.PerformanceTagMapRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -44,6 +46,8 @@ class KopisPerformanceBatchWriterJpaTest {
 	@Autowired private PerformanceGenreRepository performanceGenreRepository;
 	@Autowired private PerformanceTypeRepository performanceTypeRepository;
 	@Autowired private PerformanceTypeMapRepository performanceTypeMapRepository;
+	@Autowired private PerformanceTagRepository performanceTagRepository;
+	@Autowired private PerformanceTagMapRepository performanceTagMapRepository;
 
 	@Test
 	void resyncReplacesExistingSpotifyArtistMappingWithKopisSourceArtist() {
@@ -91,7 +95,9 @@ class KopisPerformanceBatchWriterJpaTest {
 			performanceArtistRepository,
 			performanceGenreRepository,
 			performanceTypeRepository,
-			performanceTypeMapRepository
+			performanceTypeMapRepository,
+			performanceTagRepository,
+			performanceTagMapRepository
 		);
 	}
 }
