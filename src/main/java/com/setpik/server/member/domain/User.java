@@ -17,6 +17,9 @@ import java.time.LocalDateTime;
 @Table(name = "Users")
 public class User extends BaseEntity {
 
+	// TODO: 기본 프로필 이미지 URL이 정해지면 이 값으로 교체한다.
+	private static final String DEFAULT_PROFILE_IMAGE_URL = null;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "user_id", nullable = false)
@@ -35,6 +38,9 @@ public class User extends BaseEntity {
 	@Column(name = "birth_date", nullable = true)
 	private LocalDate birthDate;
 
+	@Column(name = "profile_image_url", nullable = true, length = 2048)
+	private String profileImageUrl;
+
 	protected User() {
 	}
 
@@ -43,6 +49,7 @@ public class User extends BaseEntity {
 		User user = new User();
 		user.status = UserStatus.ACTIVE;
 		user.lastLoginAt = loginAt;
+		user.profileImageUrl = DEFAULT_PROFILE_IMAGE_URL;
 		return user;
 	}
 
@@ -66,6 +73,16 @@ public class User extends BaseEntity {
 		this.birthDate = birthDate;
 	}
 
+	/** 업로드된 프로필 이미지 URL로 교체한다. */
+	public void updateProfileImageUrl(String profileImageUrl) {
+		this.profileImageUrl = profileImageUrl;
+	}
+
+	/** 프로필 이미지를 기본 이미지로 초기화한다. */
+	public void resetProfileImageUrl() {
+		this.profileImageUrl = DEFAULT_PROFILE_IMAGE_URL;
+	}
+
 	public Long getUserId() {
 		return userId;
 	}
@@ -84,6 +101,10 @@ public class User extends BaseEntity {
 
 	public LocalDate getBirthDate() {
 		return birthDate;
+	}
+
+	public String getProfileImageUrl() {
+		return profileImageUrl;
 	}
 
 }

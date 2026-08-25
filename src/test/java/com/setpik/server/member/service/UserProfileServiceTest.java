@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
+import com.setpik.server.common.storage.NoOpImageStorageClient;
 import com.setpik.server.member.domain.User;
+import com.setpik.server.member.dto.ProfileImageResponse;
 import com.setpik.server.member.dto.UpdateUserProfileRequest;
 import com.setpik.server.member.dto.UserProfileResponse;
 import com.setpik.server.member.repository.UserRepository;
@@ -18,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 
 class UserProfileServiceTest {
 
@@ -29,7 +32,8 @@ class UserProfileServiceTest {
 	void setUp() {
 		userRepository = mock(UserRepository.class);
 		spotifyAccountRepository = mock(SpotifyAccountRepository.class);
-		userProfileService = new UserProfileService(userRepository, spotifyAccountRepository);
+		userProfileService = new UserProfileService(
+			userRepository, spotifyAccountRepository, new NoOpImageStorageClient());
 	}
 
 	@Test
@@ -82,5 +86,56 @@ class UserProfileServiceTest {
 			.isInstanceOf(BusinessException.class)
 			.satisfies(exception ->
 				assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void updatesProfileImageUrlWhenImageIsUploaded() {
+		User user = User.createActive(LocalDateTime.now());
+		when(userRepository.findById(any())).thenReturn(Optional.of(user));
+		MockMultipartFile image = new MockMultipartFile(
+			"image", "profile.png", "image/png", "fake-image-bytes".getBytes());
+
+		ProfileImageResponse response = userProfileService.updateProfileImage(1L, image);
+
+		assertThat(response.profileImageUrl()).isNotBlank();
+		assertThat(user.getProfileImageUrl()).isEqualTo(response.profileImageUrl());
+	}
+
+	@Test
+	void rejectsNonImageContentTypeOnProfileImageUpload() {
+		User user = User.createActive(LocalDateTime.now());
+		when(userRepository.findById(any())).thenReturn(Optional.of(user));
+		MockMultipartFile notAnImage = new MockMultipartFile(
+			"image", "profile.txt", "text/plain", "not-an-image".getBytes());
+
+		assertThatThrownBy(() -> userProfileService.updateProfileImage(1L, notAnImage))
+			.isInstanceOf(BusinessException.class)
+			.satisfies(exception ->
+				assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void rejectsEmptyFileOnProfileImageUpload() {
+		User user = User.createActive(LocalDateTime.now());
+		when(userRepository.findById(any())).thenReturn(Optional.of(user));
+		MockMultipartFile emptyFile = new MockMultipartFile(
+			"image", "profile.png", "image/png", new byte[0]);
+
+		assertThatThrownBy(() -> userProfileService.updateProfileImage(1L, emptyFile))
+			.isInstanceOf(BusinessException.class)
+			.satisfies(exception ->
+				assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void resetsProfileImageToDefault() {
+		User user = User.createActive(LocalDateTime.now());
+		user.updateProfileImageUrl("https://placeholder.setpik.local/profile-images/existing");
+		when(userRepository.findById(any())).thenReturn(Optional.of(user));
+
+		ProfileImageResponse response = userProfileService.resetProfileImage(1L);
+
+		assertThat(response.profileImageUrl()).isNull();
+		assertThat(user.getProfileImageUrl()).isNull();
 	}
 }

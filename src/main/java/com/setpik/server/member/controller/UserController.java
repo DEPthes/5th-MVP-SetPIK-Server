@@ -4,6 +4,7 @@ import com.setpik.server.common.api.ApiResponse;
 import com.setpik.server.common.config.SwaggerConfig;
 import com.setpik.server.common.exception.BusinessException;
 import com.setpik.server.common.exception.ErrorCode;
+import com.setpik.server.member.dto.ProfileImageResponse;
 import com.setpik.server.member.dto.UpdateUserProfileRequest;
 import com.setpik.server.member.dto.UserProfileResponse;
 import com.setpik.server.member.dto.OnboardingStatusResponse;
@@ -18,15 +19,19 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -114,6 +119,7 @@ public class UserController {
 					    "lastLoginAt": "2026-07-28T09:10:11+09:00",
 					    "nickname": "setpik_user",
 					    "birthDate": "2000-01-01",
+					    "profileImageUrl": null,
 					    "spotifyConnected": true,
 					    "spotifyAccount": {
 					      "spotifyUserId": "31abcde",
@@ -165,6 +171,7 @@ public class UserController {
 					    "lastLoginAt": "2026-07-28T09:10:11+09:00",
 					    "nickname": "setpik_user",
 					    "birthDate": "2000-01-01",
+					    "profileImageUrl": null,
 					    "spotifyConnected": true,
 					    "spotifyAccount": {
 					      "spotifyUserId": "31abcde",
@@ -192,6 +199,34 @@ public class UserController {
 	) {
 		Long userId = parseUserId(jwt.getSubject());
 		return ResponseEntity.ok(ApiResponse.success(userProfileService.updateMyProfile(userId, request)));
+	}
+
+	@Operation(
+		summary = "프로필 이미지 업로드",
+		description = "프로필 이미지를 업로드하고 교체된 이미지 URL을 반환합니다. "
+			+ "TODO: 현재는 S3 연동 전이라 NoOpImageStorageClient가 가짜 URL만 반환합니다."
+	)
+	@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
+	@PutMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<ApiResponse<ProfileImageResponse>> updateProfileImage(
+		@AuthenticationPrincipal Jwt jwt,
+		@RequestParam("image") MultipartFile image
+	) {
+		Long userId = parseUserId(jwt.getSubject());
+		return ResponseEntity.ok(ApiResponse.success(userProfileService.updateProfileImage(userId, image)));
+	}
+
+	@Operation(
+		summary = "프로필 이미지 초기화",
+		description = "프로필 이미지를 기본 이미지로 되돌립니다."
+	)
+	@SecurityRequirement(name = SwaggerConfig.BEARER_AUTH)
+	@DeleteMapping("/me/profile-image")
+	public ResponseEntity<ApiResponse<ProfileImageResponse>> resetProfileImage(
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		Long userId = parseUserId(jwt.getSubject());
+		return ResponseEntity.ok(ApiResponse.success(userProfileService.resetProfileImage(userId)));
 	}
 
 	@Operation(

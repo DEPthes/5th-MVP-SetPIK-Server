@@ -10,6 +10,7 @@ public record UserProfileResponse(
 	OffsetDateTime lastLoginAt,
 	String nickname,
 	LocalDate birthDate,
+	String profileImageUrl,
 	boolean spotifyConnected,
 	SpotifyAccountProfileResponse spotifyAccount
 ) {
