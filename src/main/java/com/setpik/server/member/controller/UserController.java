@@ -124,6 +124,7 @@ public class UserController {
 					    "spotifyAccount": {
 					      "spotifyUserId": "31abcde",
 					      "displayName": "setpik_user",
+					      "email": "user@example.com",
 					      "profileImageUrl": "https://i.scdn.co/image/abc123"
 					    }
 					  }
@@ -176,6 +177,7 @@ public class UserController {
 					    "spotifyAccount": {
 					      "spotifyUserId": "31abcde",
 					      "displayName": "setpik_user",
+					      "email": "user@example.com",
 					      "profileImageUrl": "https://i.scdn.co/image/abc123"
 					    }
 					  }

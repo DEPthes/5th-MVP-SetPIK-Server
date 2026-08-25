@@ -108,6 +108,7 @@ class UserControllerIntegrationTest {
 			.andExpect(jsonPath("$.result.spotifyConnected").value(true))
 			.andExpect(jsonPath("$.result.spotifyAccount.spotifyUserId").value("31abcde"))
 			.andExpect(jsonPath("$.result.spotifyAccount.displayName").value("setpik_user"))
+			.andExpect(jsonPath("$.result.spotifyAccount.email").value("user@example.com"))
 			.andExpect(jsonPath("$.result.spotifyAccount.profileImageUrl")
 				.value("https://i.scdn.co/image/abc123"));
 	}

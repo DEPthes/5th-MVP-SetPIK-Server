@@ -137,6 +137,7 @@ public class UserProfileService {
 		return new SpotifyAccountProfileResponse(
 			account.getSpotifyUserId(),
 			account.getDisplayName(),
+			account.getSpotifyEmail(),
 			account.getProfileImageUrl()
 		);
 	}
