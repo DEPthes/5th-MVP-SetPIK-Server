@@ -1,6 +1,7 @@
 package com.setpik.server.performance.domain;
 
 import com.setpik.server.common.domain.BaseEntity;
+import com.setpik.server.performance.service.TicketPriceParser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -49,6 +50,10 @@ public class Performance extends BaseEntity {
 
 	@Column(name = "ticket_price_text", nullable = true, length = 255)
 	private String ticketPriceText;
+
+	/** ticketPriceText(자유 텍스트)에서 파싱한 최저가로, DB 레벨 가격 정렬을 위해 별도 컬럼에 저장한다. */
+	@Column(name = "min_ticket_price", nullable = true)
+	private Integer minTicketPrice;
 
 	@Column(name = "running_time", nullable = true, length = 255)
 	private String runningTime;
@@ -108,6 +113,7 @@ public class Performance extends BaseEntity {
 		this.performanceStatus = performanceStatus;
 		this.priceType = priceType;
 		this.ticketPriceText = ticketPriceText;
+		this.minTicketPrice = TicketPriceParser.parseMinPrice(priceType, ticketPriceText);
 		this.runningTime = runningTime;
 		this.ageRestriction = ageRestriction;
 		this.lastSyncedAt = lastSyncedAt;
@@ -153,6 +159,10 @@ public class Performance extends BaseEntity {
 
 	public String getTicketPriceText() {
 		return ticketPriceText;
+	}
+
+	public Integer getMinTicketPrice() {
+		return minTicketPrice;
 	}
 
 	public String getRunningTime() {

@@ -33,6 +33,7 @@ import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.performance.repository.TicketScheduleRepository;
 import com.setpik.server.performance.repository.VenueRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,8 @@ class PerformanceServiceTest {
 	private final PerformanceMatchArtistRepository performanceMatchArtistRepository =
 		mock(PerformanceMatchArtistRepository.class);
 	private final PlaylistAnalysisRepository playlistAnalysisRepository = mock(PlaylistAnalysisRepository.class);
+	private final PerformanceMetadataLookupService performanceMetadataLookupService =
+		mock(PerformanceMetadataLookupService.class);
 
 	private PerformanceService service;
 
@@ -68,7 +71,8 @@ class PerformanceServiceTest {
 			artistAliasRepository,
 			performanceMatchRepository,
 			performanceMatchArtistRepository,
-			playlistAnalysisRepository
+			playlistAnalysisRepository,
+			performanceMetadataLookupService
 		);
 	}
 
@@ -88,7 +92,24 @@ class PerformanceServiceTest {
 		Performance performance = mock(Performance.class);
 		when(performance.getPerformanceId()).thenReturn(1001L);
 		when(performance.getPerformanceName()).thenReturn("공연명");
+		when(performance.getVenueId()).thenReturn(77L);
+		when(performance.getPosterUrl()).thenReturn("https://images.example.com/performances/1001.jpg");
+		when(performance.getStartDate()).thenReturn(java.time.LocalDate.of(2026, 8, 15));
+		when(performance.getEndDate()).thenReturn(java.time.LocalDate.of(2026, 8, 17));
+		when(performance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
+		when(performance.getMinTicketPrice()).thenReturn(80000);
 		when(performanceRepository.findAllById(List.of(1001L))).thenReturn(List.of(performance));
+
+		Venue venue = mock(Venue.class);
+		when(venue.getVenueId()).thenReturn(77L);
+		when(venue.getVenueName()).thenReturn("송도달빛축제공원");
+		when(venue.getCity()).thenReturn("인천");
+		when(venueRepository.findAllById(List.of(77L))).thenReturn(List.of(venue));
+
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, "SOLO_CONCERT"));
+		when(performanceMetadataLookupService.artistNamesByPerformanceId(List.of(1001L)))
+			.thenReturn(Map.of(1001L, List.of("Artist A")));
 
 		PageResponse<PerformanceRecommendationResponse> result = service.getRecommendedPerformances(
 			1L, 501L, 0, 1, "matchedArtistCount,desc");
@@ -96,6 +117,12 @@ class PerformanceServiceTest {
 		assertThat(result.content()).singleElement().satisfies(response -> {
 			assertThat(response.matchId()).isEqualTo(900L);
 			assertThat(response.performanceName()).isEqualTo("공연명");
+			assertThat(response.venueName()).isEqualTo("송도달빛축제공원");
+			assertThat(response.region()).isEqualTo("인천");
+			assertThat(response.artistNames()).containsExactly("Artist A");
+			assertThat(response.performanceType()).isEqualTo("SOLO_CONCERT");
+			assertThat(response.performanceStatus()).isEqualTo("ON_SALE");
+			assertThat(response.minTicketPrice()).isEqualTo(80000);
 		});
 		assertThat(result.hasNext()).isTrue();
 		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -270,5 +297,104 @@ class PerformanceServiceTest {
 		assertThatThrownBy(() -> service.getMatchedArtists(2L, 501L, 1001L))
 			.isInstanceOfSatisfying(BusinessException.class,
 				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+	}
+
+	@Test
+	void browsesPerformancesWithRecommendationScoreFromLatestCompletedAnalysis() {
+		com.setpik.server.analysis.domain.PlaylistAnalysis analysis =
+			mock(com.setpik.server.analysis.domain.PlaylistAnalysis.class);
+		when(analysis.getAnalysisId()).thenReturn(501L);
+		when(playlistAnalysisRepository.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+			1L, com.setpik.server.analysis.domain.AnalysisStatus.COMPLETED))
+			.thenReturn(Optional.of(analysis));
+
+		Performance matchedPerformance = mock(Performance.class);
+		when(matchedPerformance.getPerformanceId()).thenReturn(1001L);
+		when(matchedPerformance.getVenueId()).thenReturn(77L);
+		when(matchedPerformance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
+		Performance unmatchedPerformance = mock(Performance.class);
+		when(unmatchedPerformance.getPerformanceId()).thenReturn(1002L);
+		when(unmatchedPerformance.getVenueId()).thenReturn(78L);
+		when(unmatchedPerformance.getPerformanceStatus()).thenReturn(PerformanceStatus.SCHEDULED);
+		when(performanceRepository.searchOrderedByRecommendation(
+			any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.eq(501L), any()))
+			.thenReturn(new PageImpl<>(List.of(matchedPerformance, unmatchedPerformance), PageRequest.of(0, 20), 2));
+		when(venueRepository.findAllById(any())).thenReturn(List.of());
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(any())).thenReturn(Map.of());
+		when(performanceMetadataLookupService.artistNamesByPerformanceId(any())).thenReturn(Map.of());
+
+		PerformanceMatch match = mock(PerformanceMatch.class);
+		when(match.getPerformanceId()).thenReturn(1001L);
+		when(match.getMatchPriority()).thenReturn((byte) 2);
+		when(match.getMatchedArtistCount()).thenReturn(3);
+		when(performanceMatchRepository.findByAnalysisIdAndPerformanceIdIn(501L, List.of(1001L, 1002L)))
+			.thenReturn(List.of(match));
+
+		PageResponse<com.setpik.server.performance.dto.PerformanceBrowseResponse> result =
+			service.browsePerformances(1L, "festival", null, null, null, null, 0, 20, "recommended,desc");
+
+		assertThat(result.content()).hasSize(2);
+		assertThat(result.content().get(0).performanceId()).isEqualTo(1001L);
+		assertThat(result.content().get(0).recommendationScore()).isEqualTo(2003);
+		assertThat(result.content().get(1).performanceId()).isEqualTo(1002L);
+		assertThat(result.content().get(1).recommendationScore()).isEqualTo(0);
+	}
+
+	@Test
+	void browsesPerformancesWithNullRecommendationScoreWhenNoCompletedAnalysisExists() {
+		when(playlistAnalysisRepository.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+			1L, com.setpik.server.analysis.domain.AnalysisStatus.COMPLETED))
+			.thenReturn(Optional.empty());
+
+		Performance performance = mock(Performance.class);
+		when(performance.getPerformanceId()).thenReturn(1001L);
+		when(performance.getVenueId()).thenReturn(77L);
+		when(performance.getPerformanceStatus()).thenReturn(PerformanceStatus.ON_SALE);
+		when(performanceRepository.searchOrderedByRecommendation(
+			any(), any(), any(), any(), any(), org.mockito.ArgumentMatchers.isNull(), any()))
+			.thenReturn(new PageImpl<>(List.of(performance), PageRequest.of(0, 20), 1));
+		when(venueRepository.findAllById(any())).thenReturn(List.of());
+		when(performanceMetadataLookupService.performanceTypeCodeByPerformanceId(any())).thenReturn(Map.of());
+		when(performanceMetadataLookupService.artistNamesByPerformanceId(any())).thenReturn(Map.of());
+
+		PageResponse<com.setpik.server.performance.dto.PerformanceBrowseResponse> result =
+			service.browsePerformances(1L, null, null, null, null, null, 0, 20, "recommended,desc");
+
+		assertThat(result.content()).singleElement().satisfies(response ->
+			assertThat(response.recommendationScore()).isNull());
+	}
+
+	@Test
+	void browsesPerformancesSortedByStartDateUsingQualifiedSortProperty() {
+		when(playlistAnalysisRepository.findFirstByUserIdAndAnalysisStatusOrderByAnalyzedAtDescAnalysisIdDesc(
+			1L, com.setpik.server.analysis.domain.AnalysisStatus.COMPLETED))
+			.thenReturn(Optional.empty());
+		when(performanceRepository.search(any(), any(), any(), any(), any(), any()))
+			.thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+		service.browsePerformances(1L, null, null, null, null, null, 0, 20, "startDate,asc");
+
+		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+		org.mockito.Mockito.verify(performanceRepository)
+			.search(any(), any(), any(), any(), any(), pageableCaptor.capture());
+		assertThat(pageableCaptor.getValue().getSort().getOrderFor("performance.startDate"))
+			.extracting(Sort.Order::getDirection)
+			.isEqualTo(Sort.Direction.ASC);
+	}
+
+	@Test
+	void rejectsUnsupportedBrowseSortField() {
+		assertThatThrownBy(() -> service.browsePerformances(
+			1L, null, null, null, null, null, 0, 20, "unknown,asc"))
+			.isInstanceOfSatisfying(BusinessException.class,
+				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+	}
+
+	@Test
+	void rejectsAscendingDirectionForRecommendedSort() {
+		assertThatThrownBy(() -> service.browsePerformances(
+			1L, null, null, null, null, null, 0, 20, "recommended,asc"))
+			.isInstanceOfSatisfying(BusinessException.class,
+				exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
 	}
 }

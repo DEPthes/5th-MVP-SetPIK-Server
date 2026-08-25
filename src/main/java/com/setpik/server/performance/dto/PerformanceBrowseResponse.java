@@ -1,19 +1,13 @@
 package com.setpik.server.performance.dto;
 
 import com.setpik.server.performance.domain.Performance;
-import com.setpik.server.performance.domain.PerformanceMatch;
 import com.setpik.server.performance.domain.Venue;
 import java.time.LocalDate;
 import java.util.List;
 
-public record PerformanceRecommendationResponse(
-	Long matchId,
+public record PerformanceBrowseResponse(
 	Long performanceId,
 	String performanceName,
-	Byte matchPriority,
-	Integer matchedArtistCount,
-	Byte matchRatio,
-	String recommendationReason,
 	String posterUrl,
 	LocalDate startDate,
 	LocalDate endDate,
@@ -22,23 +16,19 @@ public record PerformanceRecommendationResponse(
 	List<String> artistNames,
 	String performanceType,
 	String performanceStatus,
-	Integer minTicketPrice
+	Integer minTicketPrice,
+	Integer recommendationScore
 ) {
-	public static PerformanceRecommendationResponse of(
-		PerformanceMatch match,
+	public static PerformanceBrowseResponse of(
 		Performance performance,
 		Venue venue,
 		String performanceType,
-		List<String> artistNames
+		List<String> artistNames,
+		Integer recommendationScore
 	) {
-		return new PerformanceRecommendationResponse(
-			match.getMatchId(),
-			match.getPerformanceId(),
+		return new PerformanceBrowseResponse(
+			performance.getPerformanceId(),
 			performance.getPerformanceName(),
-			match.getMatchPriority(),
-			match.getMatchedArtistCount(),
-			match.getMatchRatio(),
-			match.getRecommendationReason(),
 			performance.getPosterUrl(),
 			performance.getStartDate(),
 			performance.getEndDate(),
@@ -47,7 +37,8 @@ public record PerformanceRecommendationResponse(
 			artistNames,
 			performanceType,
 			performance.getPerformanceStatus().name(),
-			performance.getMinTicketPrice()
+			performance.getMinTicketPrice(),
+			recommendationScore
 		);
 	}
 }

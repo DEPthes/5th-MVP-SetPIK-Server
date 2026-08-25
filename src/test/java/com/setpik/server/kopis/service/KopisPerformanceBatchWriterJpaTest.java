@@ -77,6 +77,9 @@ class KopisPerformanceBatchWriterJpaTest {
 		assertThat(mappings)
 			.extracting(PerformanceArtist::getArtistId)
 			.doesNotContain(incorrectlyLinkedSpotifyArtist.getArtistId());
+
+		Performance resynced = performanceRepository.findById(performance.getPerformanceId()).orElseThrow();
+		assertThat(resynced.getMinTicketPrice()).isEqualTo(10000);
 	}
 
 	private KopisPerformanceBatchWriter writer() {
