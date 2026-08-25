@@ -190,19 +190,21 @@ public class PrestudyPlaylistService {
 			boolean fromOriginal = !originalTracks.isEmpty();
 			List<PrestudyCandidateResponse.TrackCandidate> candidateTracks;
 			if (fromOriginal) {
-				candidateTracks = originalTracks.stream()
-					.limit(1)
-					.map(track -> new PrestudyCandidateResponse.TrackCandidate(
-						track.getTrackId(), track.getTrackName(), SourceType.ORIGINAL_PLAYLIST.name()))
-					.toList();
-			} else if (artist.spotifyArtistId() == null || artist.spotifyArtistId().isBlank()) {
-				candidateTracks = List.of();
-			} else {
-				if (accessToken == null) {
-					accessToken = resolveAccessToken(findConnectedSpotifyAccount(userId));
-				}
-				candidateTracks = buildRepresentativeTrackCandidate(accessToken, artist);
-			}
+                candidateTracks = originalTracks.stream()
+                .limit(1)
+                .map(track -> new PrestudyCandidateResponse.TrackCandidate(
+                    track.getTrackId(), track.getTrackName(), SourceType.ORIGINAL_PLAYLIST.name(),
+                    track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
+                    track.getPreviewUrl(), track.getDurationMs()))
+                .toList();
+            } else if (artist.spotifyArtistId() == null || artist.spotifyArtistId().isBlank()) {
+                candidateTracks = List.of();
+            } else {
+             if (accessToken == null) {
+                accessToken = resolveAccessToken(findConnectedSpotifyAccount(userId));
+            }
+                candidateTracks = buildRepresentativeTrackCandidate(accessToken, artist);
+            }
 			artists.add(new PrestudyCandidateResponse.ArtistCandidate(
 				artist.displayArtistId(), artist.artistName(), fromOriginal, candidateTracks));
 		}
@@ -348,7 +350,9 @@ public class PrestudyPlaylistService {
 				track.getTrackId(), artist.trackArtistId(), (short) 1));
 		}
 		return List.of(new PrestudyCandidateResponse.TrackCandidate(
-			track.getTrackId(), track.getTrackName(), SourceType.MATCHED_ARTIST.name()));
+            track.getTrackId(), track.getTrackName(), SourceType.MATCHED_ARTIST.name(),
+            track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
+            track.getPreviewUrl(), track.getDurationMs()));
 	}
 
 	private List<EffectiveArtist> resolveEffectiveArtists(

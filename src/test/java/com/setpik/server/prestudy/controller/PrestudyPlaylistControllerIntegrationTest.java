@@ -49,7 +49,9 @@ class PrestudyPlaylistControllerIntegrationTest {
 				new PrestudyCandidateResponse.ArtistCandidate(
 					7L, "Artist A", true, List.of(
 						new PrestudyCandidateResponse.TrackCandidate(
-							4001L, "Song A", "ORIGINAL_PLAYLIST")))
+							4001L, "Song A", "ORIGINAL_PLAYLIST",
+							"앨범명", "https://image.example.com/album.jpg",
+    						"https://open.spotify.com/track/xxx", "https://preview.example.com/xxx.mp3", 180000)))
 			)));
 
 		mockMvc.perform(get("/api/v1/performances/{performanceId}/prestudy/candidates", 1001L)
