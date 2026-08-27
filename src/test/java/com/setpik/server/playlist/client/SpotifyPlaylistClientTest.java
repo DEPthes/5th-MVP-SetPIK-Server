@@ -68,6 +68,7 @@ class SpotifyPlaylistClientTest {
 
 		server.expect(requestTo(containsString("https://api.spotify.com/v1/search?")))
 			.andExpect(requestTo(containsString("limit=20")))
+			.andExpect(requestTo(containsString("offset=0")))
 			.andExpect(method(HttpMethod.GET))
 			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
 			.andRespond(withSuccess("""
@@ -100,6 +101,46 @@ class SpotifyPlaylistClientTest {
 			.extracting(track -> track.spotifyTrackId())
 			.containsExactly("track-1", "track-2");
 		server.verify();
+	}
+
+	@Test
+	void searchesFollowingPagesUntilRepresentativeTrackLimitIsReached() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
+
+		server.expect(requestTo(containsString("offset=0")))
+			.andRespond(withSuccess(searchResponse(
+				"wrong-track", "artist-2", "https://api.spotify.com/v1/search?offset=1"),
+				MediaType.APPLICATION_JSON));
+		server.expect(requestTo(containsString("offset=1")))
+			.andRespond(withSuccess(searchResponse("track-1", "artist-1", null),
+				MediaType.APPLICATION_JSON));
+
+		var result = client.fetchRepresentativeTracks(
+			"access-token", "artist-1", "Artist A", 20);
+
+		assertThat(result)
+			.extracting(track -> track.spotifyTrackId())
+			.containsExactly("track-1");
+		server.verify();
+	}
+
+	private String searchResponse(String trackId, String artistId, String next) {
+		String nextValue = next == null ? "null" : "\"" + next + "\"";
+		return """
+			{
+			  "tracks": {
+			    "items": [{
+			      "id": "%s", "name": "Song", "type": "track",
+			      "artists": [{"id": "%s", "name": "Artist"}],
+			      "album": {"name": "Album", "images": []},
+			      "duration_ms": 180000, "is_playable": true, "is_local": false
+			    }],
+			    "next": %s
+			  }
+			}
+			""".formatted(trackId, artistId, nextValue);
 	}
 
 	@Test

@@ -28,6 +28,8 @@ public class SpotifyPlaylistClient {
 	private static final Logger log = LoggerFactory.getLogger(SpotifyPlaylistClient.class);
 	private static final String API_BASE_URI = "https://api.spotify.com/v1";
 	private static final int PAGE_SIZE = 50;
+	private static final int REPRESENTATIVE_TRACK_SEARCH_PAGE_SIZE = 20;
+	private static final int REPRESENTATIVE_TRACK_SEARCH_MAX_PAGES = 5;
 	private final RestClient restClient;
 
 	public SpotifyPlaylistClient(RestClient.Builder restClientBuilder) {
@@ -229,41 +231,53 @@ public class SpotifyPlaylistClient {
 		String artistName,
 		int limit
 	) {
-		try {
+		if (limit <= 0) {
+			return List.of();
+		}
+		Map<String, SpotifyTrackSnapshot> uniqueTracks = new java.util.LinkedHashMap<>();
+		int offset = 0;
+		for (int page = 0;
+			page < REPRESENTATIVE_TRACK_SEARCH_MAX_PAGES && uniqueTracks.size() < limit;
+			page++) {
 			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
 				.queryParam("q", "artist:\"" + artistName + "\"")
 				.queryParam("type", "track")
 				.queryParam("market", "KR")
-				.queryParam("limit", limit)
+				.queryParam("limit", REPRESENTATIVE_TRACK_SEARCH_PAGE_SIZE)
+				.queryParam("offset", offset)
 				.build()
 				.encode()
 				.toUri();
-			TrackSearchResponse response = restClient.get()
-				.uri(uri)
-				.headers(headers -> headers.setBearerAuth(accessToken))
-				.retrieve()
-				.body(TrackSearchResponse.class);
-			if (response == null || response.tracks() == null) {
-				return List.of();
+			TrackSearchResponse response;
+			try {
+				response = restClient.get()
+					.uri(uri)
+					.headers(headers -> headers.setBearerAuth(accessToken))
+					.retrieve()
+					.body(TrackSearchResponse.class);
+			} catch (RestClientResponseException exception) {
+				logSpotifyError(exception);
+				break;
+			} catch (RestClientException exception) {
+				break;
 			}
-			Map<String, SpotifyTrackSnapshot> uniqueTracks = response.tracks().safeItems().stream()
+			if (response == null || response.tracks() == null) {
+				break;
+			}
+			List<TrackItem> items = response.tracks().safeItems();
+			items.stream()
 				.filter(item -> item.safeArtists().stream()
 					.anyMatch(artist -> spotifyArtistId.equals(artist.id())))
 				.map(this::toTrackSnapshot)
 				.filter(track -> track.spotifyTrackId() != null && !track.spotifyTrackId().isBlank())
-				.collect(Collectors.toMap(
-					SpotifyTrackSnapshot::spotifyTrackId,
-					Function.identity(),
-					(left, right) -> left,
-					java.util.LinkedHashMap::new
-				));
-			return uniqueTracks.values().stream().limit(limit).toList();
-		} catch (RestClientResponseException exception) {
-			logSpotifyError(exception);
-			return List.of();
-		} catch (RestClientException exception) {
-			return List.of();
+				.forEach(track -> uniqueTracks.putIfAbsent(track.spotifyTrackId(), track));
+			if (items.isEmpty() || response.tracks().next() == null
+				|| response.tracks().next().isBlank()) {
+				break;
+			}
+			offset += items.size();
 		}
+		return uniqueTracks.values().stream().limit(limit).toList();
 	}
 
 	private PlaylistPage getPlaylistPage(String accessToken, int offset) {
@@ -481,7 +495,7 @@ public class SpotifyPlaylistClient {
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	private record TrackSearchPage(List<TrackItem> items) {
+	private record TrackSearchPage(List<TrackItem> items, String next) {
 		private List<TrackItem> safeItems() {
 			return items == null ? List.of() : items;
 		}
