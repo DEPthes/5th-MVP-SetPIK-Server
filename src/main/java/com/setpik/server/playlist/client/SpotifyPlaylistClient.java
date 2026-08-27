@@ -28,8 +28,8 @@ public class SpotifyPlaylistClient {
 	private static final Logger log = LoggerFactory.getLogger(SpotifyPlaylistClient.class);
 	private static final String API_BASE_URI = "https://api.spotify.com/v1";
 	private static final int PAGE_SIZE = 50;
-	private static final int REPRESENTATIVE_TRACK_SEARCH_PAGE_SIZE = 20;
-	private static final int REPRESENTATIVE_TRACK_SEARCH_MAX_PAGES = 5;
+	private static final int ARTIST_ALBUM_PAGE_SIZE = 10;
+	private static final int ARTIST_ALBUM_MAX_PAGES = 3;
 	private final RestClient restClient;
 
 	public SpotifyPlaylistClient(RestClient.Builder restClientBuilder) {
@@ -224,60 +224,105 @@ public class SpotifyPlaylistClient {
 		}
 	}
 
-	/** 매칭된 아티스트의 Spotify 검색 결과에서 대표곡을 최대 limit곡 조회한다. 실패 시 빈 목록을 반환한다. */
+	/** 매칭된 아티스트의 앨범과 싱글에서 곡을 최대 limit곡 조회한다. 실패 시 수집된 곡까지만 반환한다. */
 	public List<SpotifyTrackSnapshot> fetchRepresentativeTracks(
 		String accessToken,
 		String spotifyArtistId,
-		String artistName,
 		int limit
 	) {
 		if (limit <= 0) {
 			return List.of();
 		}
 		Map<String, SpotifyTrackSnapshot> uniqueTracks = new java.util.LinkedHashMap<>();
-		int offset = 0;
-		for (int page = 0;
-			page < REPRESENTATIVE_TRACK_SEARCH_MAX_PAGES && uniqueTracks.size() < limit;
-			page++) {
-			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
-				.queryParam("q", "artist:\"" + artistName + "\"")
-				.queryParam("type", "track")
+		int albumOffset = 0;
+		for (int page = 0; page < ARTIST_ALBUM_MAX_PAGES && uniqueTracks.size() < limit; page++) {
+			java.net.URI albumPageUri = UriComponentsBuilder
+				.fromUriString(API_BASE_URI + "/artists/" + spotifyArtistId + "/albums")
+				.queryParam("include_groups", "album,single")
 				.queryParam("market", "KR")
-				.queryParam("limit", REPRESENTATIVE_TRACK_SEARCH_PAGE_SIZE)
-				.queryParam("offset", offset)
+				.queryParam("limit", ARTIST_ALBUM_PAGE_SIZE)
+				.queryParam("offset", albumOffset)
 				.build()
 				.encode()
 				.toUri();
-			TrackSearchResponse response;
+			ArtistAlbumPage albumPage;
 			try {
-				response = restClient.get()
-					.uri(uri)
+				albumPage = restClient.get()
+					.uri(albumPageUri)
 					.headers(headers -> headers.setBearerAuth(accessToken))
 					.retrieve()
-					.body(TrackSearchResponse.class);
+					.body(ArtistAlbumPage.class);
 			} catch (RestClientResponseException exception) {
 				logSpotifyError(exception);
 				break;
 			} catch (RestClientException exception) {
 				break;
 			}
-			if (response == null || response.tracks() == null) {
+			if (albumPage == null || albumPage.safeItems().isEmpty()) {
 				break;
 			}
-			List<TrackItem> items = response.tracks().safeItems();
-			items.stream()
-				.filter(item -> item.safeArtists().stream()
-					.anyMatch(artist -> spotifyArtistId.equals(artist.id())))
-				.map(this::toTrackSnapshot)
-				.filter(track -> track.spotifyTrackId() != null && !track.spotifyTrackId().isBlank())
-				.forEach(track -> uniqueTracks.putIfAbsent(track.spotifyTrackId(), track));
-			if (items.isEmpty() || response.tracks().next() == null
-				|| response.tracks().next().isBlank()) {
+			String albumIds = albumPage.safeItems().stream()
+				.map(AlbumSummary::id)
+				.filter(id -> id != null && !id.isBlank())
+				.distinct()
+				.collect(Collectors.joining(","));
+			if (albumIds.isBlank()) {
 				break;
 			}
-			offset += items.size();
+			java.net.URI albumsUri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/albums")
+				.queryParam("ids", albumIds)
+				.queryParam("market", "KR")
+				.build()
+				.encode()
+				.toUri();
+			try {
+				SeveralAlbumsResponse albumsResponse = restClient.get()
+					.uri(albumsUri)
+					.headers(headers -> headers.setBearerAuth(accessToken))
+					.retrieve()
+					.body(SeveralAlbumsResponse.class);
+				if (albumsResponse == null) {
+					break;
+				}
+				for (AlbumDetail album : albumsResponse.safeAlbums()) {
+					for (TrackItem item : album.safeTracks()) {
+						if (uniqueTracks.size() >= limit) {
+							break;
+						}
+						boolean exactArtist = item.safeArtists().stream()
+							.anyMatch(artist -> spotifyArtistId.equals(artist.id()));
+						if (!exactArtist || item.id() == null || item.id().isBlank()) {
+							continue;
+						}
+						uniqueTracks.putIfAbsent(item.id(), toAlbumTrackSnapshot(item, album));
+					}
+				}
+			} catch (RestClientResponseException exception) {
+				logSpotifyError(exception);
+				break;
+			} catch (RestClientException exception) {
+				break;
+			}
+			if (albumPage.next() == null || albumPage.next().isBlank()) {
+				break;
+			}
+			albumOffset += albumPage.safeItems().size();
 		}
 		return uniqueTracks.values().stream().limit(limit).toList();
+	}
+
+	private SpotifyTrackSnapshot toAlbumTrackSnapshot(TrackItem item, AlbumDetail album) {
+		return new SpotifyTrackSnapshot(
+			item.id(), item.name(), album.name(), firstImageUrl(album.images()),
+			item.externalUrls() == null ? null : item.externalUrls().spotify(),
+			item.previewUrl(), item.durationMs(), Boolean.TRUE.equals(item.isPlayable()), null,
+			item.safeArtists().stream()
+				.filter(artist -> artist.id() != null && artist.name() != null)
+				.map(artist -> new SpotifyArtistSnapshot(
+					artist.id(), artist.name(),
+					artist.externalUrls() == null ? null : artist.externalUrls().spotify()))
+				.toList()
+		);
 	}
 
 	private PlaylistPage getPlaylistPage(String accessToken, int offset) {
@@ -491,11 +536,37 @@ public class SpotifyPlaylistClient {
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	private record TrackSearchResponse(TrackSearchPage tracks) {
+	private record ArtistAlbumPage(List<AlbumSummary> items, String next) {
+		private List<AlbumSummary> safeItems() {
+			return items == null ? List.of() : items;
+		}
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	private record TrackSearchPage(List<TrackItem> items, String next) {
+	private record AlbumSummary(String id) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record SeveralAlbumsResponse(List<AlbumDetail> albums) {
+		private List<AlbumDetail> safeAlbums() {
+			return albums == null ? List.of() : albums;
+		}
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record AlbumDetail(
+		String id,
+		String name,
+		List<Image> images,
+		AlbumTrackPage tracks
+	) {
+		private List<TrackItem> safeTracks() {
+			return tracks == null ? List.of() : tracks.safeItems();
+		}
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record AlbumTrackPage(List<TrackItem> items) {
 		private List<TrackItem> safeItems() {
 			return items == null ? List.of() : items;
 		}

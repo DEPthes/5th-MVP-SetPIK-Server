@@ -274,7 +274,7 @@ class PrestudyPlaylistServiceTest {
 			.thenReturn(List.of(new TrackArtist(4001L, 76L, (short) 1)));
 		stubConnectedSpotifyAccount();
 		when(spotifyPlaylistClient.fetchRepresentativeTracks(
-			"access-token", "spotify-yena", "최예나", 20))
+			"access-token", "spotify-yena", 20))
 			.thenReturn(List.of(new SpotifyTrackSnapshot(
 				"spotify-new", "YENA New Song", "Album", null, null, null,
 				180000, true, null, List.of())));

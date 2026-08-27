@@ -384,8 +384,7 @@ public class PrestudyPlaylistService {
 			return List.of();
 		}
 		List<SpotifyTrackSnapshot> sources = spotifyPlaylistClient.fetchRepresentativeTracks(
-			accessToken, artist.spotifyArtistId(), artist.artistName(),
-			MAX_CANDIDATE_TRACKS_PER_ARTIST);
+			accessToken, artist.spotifyArtistId(), MAX_CANDIDATE_TRACKS_PER_ARTIST);
 		if (sources.isEmpty()) {
 			return List.of();
 		}

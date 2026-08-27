@@ -61,41 +61,42 @@ class SpotifyPlaylistClientTest {
 	}
 
 	@Test
-	void searchesUpToTwentyRepresentativeTracksBecauseArtistTopTracksEndpointWasRemoved() {
+	void collectsRepresentativeTracksFromArtistsAlbums() {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
 
-		server.expect(requestTo(containsString("https://api.spotify.com/v1/search?")))
-			.andExpect(requestTo(containsString("limit=20")))
+		server.expect(requestTo(containsString("/artists/artist-1/albums?")))
+			.andExpect(requestTo(containsString("include_groups=album,single")))
 			.andExpect(requestTo(containsString("offset=0")))
 			.andExpect(method(HttpMethod.GET))
 			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+			.andRespond(withSuccess(albumPageResponse("album-1", null),
+				MediaType.APPLICATION_JSON));
+		server.expect(requestTo(containsString("/albums?ids=album-1")))
 			.andRespond(withSuccess("""
 				{
-				  "tracks": {
-				    "items": [{
+				  "albums": [{
+				    "id": "album-1", "name": "Album", "images": [],
+				    "tracks": {"items": [{
 				      "id": "track-1", "name": "Song A", "type": "track",
 				      "artists": [{"id": "artist-1", "name": "Artist A"}],
-				      "album": {"name": "Album", "images": []},
 				      "duration_ms": 180000, "is_playable": true, "is_local": false
 				    }, {
 				      "id": "track-2", "name": "Song B", "type": "track",
 				      "artists": [{"id": "artist-1", "name": "Artist A"}],
-				      "album": {"name": "Album", "images": []},
 				      "duration_ms": 190000, "is_playable": true, "is_local": false
 				    }, {
 				      "id": "other-track", "name": "Wrong Artist Song", "type": "track",
 				      "artists": [{"id": "artist-2", "name": "Artist B"}],
-				      "album": {"name": "Album", "images": []},
 				      "duration_ms": 200000, "is_playable": true, "is_local": false
-				    }]
-				  }
+				    }]}
+				  }]
 				}
 				""", MediaType.APPLICATION_JSON));
 
 		var result = client.fetchRepresentativeTracks(
-			"access-token", "artist-1", "Artist A", 20);
+			"access-token", "artist-1", 20);
 
 		assertThat(result)
 			.extracting(track -> track.spotifyTrackId())
@@ -104,21 +105,29 @@ class SpotifyPlaylistClientTest {
 	}
 
 	@Test
-	void searchesFollowingPagesUntilRepresentativeTrackLimitIsReached() {
+	void searchesFollowingAlbumPagesUntilRepresentativeTrackLimitIsReached() {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
 
-		server.expect(requestTo(containsString("offset=0")))
-			.andRespond(withSuccess(searchResponse(
-				"wrong-track", "artist-2", "https://api.spotify.com/v1/search?offset=1"),
+		server.expect(requestTo(containsString("/artists/artist-1/albums?")))
+			.andExpect(requestTo(containsString("offset=0")))
+			.andRespond(withSuccess(albumPageResponse(
+				"album-1", "https://api.spotify.com/v1/artists/artist-1/albums?offset=1"),
 				MediaType.APPLICATION_JSON));
-		server.expect(requestTo(containsString("offset=1")))
-			.andRespond(withSuccess(searchResponse("track-1", "artist-1", null),
+		server.expect(requestTo(containsString("/albums?ids=album-1")))
+			.andRespond(withSuccess(albumResponse("album-1", "wrong-track", "artist-2"),
+				MediaType.APPLICATION_JSON));
+		server.expect(requestTo(containsString("/artists/artist-1/albums?")))
+			.andExpect(requestTo(containsString("offset=1")))
+			.andRespond(withSuccess(albumPageResponse("album-2", null),
+				MediaType.APPLICATION_JSON));
+		server.expect(requestTo(containsString("/albums?ids=album-2")))
+			.andRespond(withSuccess(albumResponse("album-2", "track-1", "artist-1"),
 				MediaType.APPLICATION_JSON));
 
 		var result = client.fetchRepresentativeTracks(
-			"access-token", "artist-1", "Artist A", 20);
+			"access-token", "artist-1", 20);
 
 		assertThat(result)
 			.extracting(track -> track.spotifyTrackId())
@@ -126,21 +135,29 @@ class SpotifyPlaylistClientTest {
 		server.verify();
 	}
 
-	private String searchResponse(String trackId, String artistId, String next) {
+	private String albumPageResponse(String albumId, String next) {
 		String nextValue = next == null ? "null" : "\"" + next + "\"";
 		return """
 			{
-			  "tracks": {
-			    "items": [{
+			  "items": [{"id": "%s"}],
+			  "next": %s
+			}
+			""".formatted(albumId, nextValue);
+	}
+
+	private String albumResponse(String albumId, String trackId, String artistId) {
+		return """
+			{
+			  "albums": [{
+			    "id": "%s", "name": "Album", "images": [],
+			    "tracks": {"items": [{
 			      "id": "%s", "name": "Song", "type": "track",
 			      "artists": [{"id": "%s", "name": "Artist"}],
-			      "album": {"name": "Album", "images": []},
 			      "duration_ms": 180000, "is_playable": true, "is_local": false
-			    }],
-			    "next": %s
-			  }
+			    }]}
+			  }]
 			}
-			""".formatted(trackId, artistId, nextValue);
+			""".formatted(albumId, trackId, artistId);
 	}
 
 	@Test
