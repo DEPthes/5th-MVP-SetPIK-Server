@@ -65,6 +65,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class PrestudyPlaylistService {
+	private static final int MAX_CANDIDATE_TRACKS_PER_ARTIST = 20;
 
 	private final PrestudyPlaylistRepository prestudyPlaylistRepository;
 	private final PrestudyPlaylistTrackRepository prestudyPlaylistTrackRepository;
@@ -237,7 +238,7 @@ public class PrestudyPlaylistService {
 			List<PrestudyCandidateResponse.TrackCandidate> candidateTracks;
 			if (fromOriginal) {
                 candidateTracks = originalTracks.stream()
-                .limit(1)
+                .limit(MAX_CANDIDATE_TRACKS_PER_ARTIST)
                 .map(track -> new PrestudyCandidateResponse.TrackCandidate(
                     track.getTrackId(), track.getTrackName(), SourceType.ORIGINAL_PLAYLIST.name(),
                     track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
@@ -330,7 +331,8 @@ public class PrestudyPlaylistService {
 		Map<Long, List<Track>> originalTracksByArtist =
 			findOriginalTracksByArtist(analysis.getPlaylistId());
 		Set<Long> originalCandidateTrackIds = effectiveArtists.stream()
-			.flatMap(artist -> originalTracks(artist, originalTracksByArtist).stream().limit(1))
+			.flatMap(artist -> originalTracks(artist, originalTracksByArtist).stream()
+				.limit(MAX_CANDIDATE_TRACKS_PER_ARTIST))
 			.map(Track::getTrackId)
 			.collect(Collectors.toSet());
 		Map<Long, Set<Long>> artistIdsByTrack = trackArtistRepository
@@ -378,27 +380,30 @@ public class PrestudyPlaylistService {
 		if (artist.spotifyArtistId() == null || artist.spotifyArtistId().isBlank()) {
 			return List.of();
 		}
-		SpotifyTrackSnapshot source = spotifyPlaylistClient.fetchRepresentativeTrack(
-			accessToken, artist.spotifyArtistId(), artist.artistName());
-		if (source == null) {
+		List<SpotifyTrackSnapshot> sources = spotifyPlaylistClient.fetchRepresentativeTracks(
+			accessToken, artist.spotifyArtistId(), artist.artistName(),
+			MAX_CANDIDATE_TRACKS_PER_ARTIST);
+		if (sources.isEmpty()) {
 			return List.of();
 		}
 
-		Track track = trackRepository.findBySpotifyTrackId(source.spotifyTrackId())
-			.orElseGet(() -> trackRepository.save(new Track(
-				source.spotifyTrackId(), source.trackName(), source.albumName(),
-				source.albumImageUrl(), source.spotifyTrackUrl(), source.previewUrl(),
-				source.durationMs(), source.isPlayable()
-			)));
-		if (!trackArtistRepository.existsByTrackIdAndArtistId(
-			track.getTrackId(), artist.trackArtistId())) {
-			trackArtistRepository.save(new TrackArtist(
-				track.getTrackId(), artist.trackArtistId(), (short) 1));
-		}
-		return List.of(new PrestudyCandidateResponse.TrackCandidate(
-            track.getTrackId(), track.getTrackName(), SourceType.MATCHED_ARTIST.name(),
-            track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
-            track.getPreviewUrl(), track.getDurationMs()));
+		return sources.stream().map(source -> {
+			Track track = trackRepository.findBySpotifyTrackId(source.spotifyTrackId())
+				.orElseGet(() -> trackRepository.save(new Track(
+					source.spotifyTrackId(), source.trackName(), source.albumName(),
+					source.albumImageUrl(), source.spotifyTrackUrl(), source.previewUrl(),
+					source.durationMs(), source.isPlayable()
+				)));
+			if (!trackArtistRepository.existsByTrackIdAndArtistId(
+				track.getTrackId(), artist.trackArtistId())) {
+				trackArtistRepository.save(new TrackArtist(
+					track.getTrackId(), artist.trackArtistId(), (short) 1));
+			}
+			return new PrestudyCandidateResponse.TrackCandidate(
+				track.getTrackId(), track.getTrackName(), SourceType.MATCHED_ARTIST.name(),
+				track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
+				track.getPreviewUrl(), track.getDurationMs());
+		}).toList();
 	}
 
 	private List<EffectiveArtist> resolveEffectiveArtists(

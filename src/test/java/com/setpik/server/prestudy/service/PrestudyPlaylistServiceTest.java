@@ -193,10 +193,13 @@ class PrestudyPlaylistServiceTest {
 		Performance performance = mock(Performance.class);
 		Artist artist = mock(Artist.class);
 		Track originalTrack = mock(Track.class);
+		Track secondOriginalTrack = mock(Track.class);
 		when(artist.getArtistId()).thenReturn(7L);
 		when(artist.getArtistName()).thenReturn("Artist A");
 		when(originalTrack.getTrackId()).thenReturn(4001L);
 		when(originalTrack.getTrackName()).thenReturn("Song A");
+		when(secondOriginalTrack.getTrackId()).thenReturn(4002L);
+		when(secondOriginalTrack.getTrackName()).thenReturn("Song B");
 
 		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
 			.thenReturn(Optional.of(analysis));
@@ -208,10 +211,15 @@ class PrestudyPlaylistServiceTest {
 			.thenReturn(List.of(new PerformanceArtist(7L, 1001L, 1L, true)));
 		when(artistRepository.findAllById(List.of(7L))).thenReturn(List.of(artist));
 		when(playlistTrackRepository.findByPlaylistIdOrderByTrackPositionAsc(10L))
-			.thenReturn(List.of(new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now())));
-		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
-		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
-			.thenReturn(List.of(new TrackArtist(4001L, 7L, (short) 1)));
+			.thenReturn(List.of(
+				new PlaylistTrack(10L, 4001L, 1, LocalDateTime.now()),
+				new PlaylistTrack(10L, 4002L, 2, LocalDateTime.now())));
+		when(trackRepository.findAllById(List.of(4001L, 4002L)))
+			.thenReturn(List.of(originalTrack, secondOriginalTrack));
+		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L, 4002L)))
+			.thenReturn(List.of(
+				new TrackArtist(4001L, 7L, (short) 1),
+				new TrackArtist(4002L, 7L, (short) 1)));
 
 		var result = service.getCandidates(1L, 1001L, 501L);
 
@@ -219,7 +227,7 @@ class PrestudyPlaylistServiceTest {
 		assertThat(result.artists().get(0).isFromOriginalPlaylist()).isTrue();
 		assertThat(result.artists().get(0).candidateTracks())
 			.extracting(candidate -> candidate.trackId())
-			.containsExactly(4001L);
+			.containsExactly(4001L, 4002L);
 		assertThat(result.artists().get(0).candidateTracks().get(0).sourceType())
 			.isEqualTo("ORIGINAL_PLAYLIST");
 	}

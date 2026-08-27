@@ -61,12 +61,13 @@ class SpotifyPlaylistClientTest {
 	}
 
 	@Test
-	void searchesRepresentativeTrackBecauseArtistTopTracksEndpointWasRemoved() {
+	void searchesUpToTwentyRepresentativeTracksBecauseArtistTopTracksEndpointWasRemoved() {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		SpotifyPlaylistClient client = new SpotifyPlaylistClient(builder);
 
 		server.expect(requestTo(containsString("https://api.spotify.com/v1/search?")))
+			.andExpect(requestTo(containsString("limit=20")))
 			.andExpect(method(HttpMethod.GET))
 			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
 			.andRespond(withSuccess("""
@@ -77,16 +78,27 @@ class SpotifyPlaylistClientTest {
 				      "artists": [{"id": "artist-1", "name": "Artist A"}],
 				      "album": {"name": "Album", "images": []},
 				      "duration_ms": 180000, "is_playable": true, "is_local": false
+				    }, {
+				      "id": "track-2", "name": "Song B", "type": "track",
+				      "artists": [{"id": "artist-1", "name": "Artist A"}],
+				      "album": {"name": "Album", "images": []},
+				      "duration_ms": 190000, "is_playable": true, "is_local": false
+				    }, {
+				      "id": "other-track", "name": "Wrong Artist Song", "type": "track",
+				      "artists": [{"id": "artist-2", "name": "Artist B"}],
+				      "album": {"name": "Album", "images": []},
+				      "duration_ms": 200000, "is_playable": true, "is_local": false
 				    }]
 				  }
 				}
 				""", MediaType.APPLICATION_JSON));
 
-		var result = client.fetchRepresentativeTrack(
-			"access-token", "artist-1", "Artist A");
+		var result = client.fetchRepresentativeTracks(
+			"access-token", "artist-1", "Artist A", 20);
 
-		assertThat(result).isNotNull();
-		assertThat(result.spotifyTrackId()).isEqualTo("track-1");
+		assertThat(result)
+			.extracting(track -> track.spotifyTrackId())
+			.containsExactly("track-1", "track-2");
 		server.verify();
 	}
 

@@ -222,18 +222,19 @@ public class SpotifyPlaylistClient {
 		}
 	}
 
-	/** 매칭된 아티스트의 Spotify Top Tracks 중 대표곡 1곡을 조회한다. 실패 시 null을 반환한다. */
-	public SpotifyTrackSnapshot fetchRepresentativeTrack(
+	/** 매칭된 아티스트의 Spotify 검색 결과에서 대표곡을 최대 limit곡 조회한다. 실패 시 빈 목록을 반환한다. */
+	public List<SpotifyTrackSnapshot> fetchRepresentativeTracks(
 		String accessToken,
 		String spotifyArtistId,
-		String artistName
+		String artistName,
+		int limit
 	) {
 		try {
 			java.net.URI uri = UriComponentsBuilder.fromUriString(API_BASE_URI + "/search")
 				.queryParam("q", "artist:\"" + artistName + "\"")
 				.queryParam("type", "track")
 				.queryParam("market", "KR")
-				.queryParam("limit", 10)
+				.queryParam("limit", limit)
 				.build()
 				.encode()
 				.toUri();
@@ -243,19 +244,25 @@ public class SpotifyPlaylistClient {
 				.retrieve()
 				.body(TrackSearchResponse.class);
 			if (response == null || response.tracks() == null) {
-				return null;
+				return List.of();
 			}
-			return response.tracks().safeItems().stream()
+			Map<String, SpotifyTrackSnapshot> uniqueTracks = response.tracks().safeItems().stream()
 				.filter(item -> item.safeArtists().stream()
 					.anyMatch(artist -> spotifyArtistId.equals(artist.id())))
-				.findFirst()
 				.map(this::toTrackSnapshot)
-				.orElse(null);
+				.filter(track -> track.spotifyTrackId() != null && !track.spotifyTrackId().isBlank())
+				.collect(Collectors.toMap(
+					SpotifyTrackSnapshot::spotifyTrackId,
+					Function.identity(),
+					(left, right) -> left,
+					java.util.LinkedHashMap::new
+				));
+			return uniqueTracks.values().stream().limit(limit).toList();
 		} catch (RestClientResponseException exception) {
 			logSpotifyError(exception);
-			return null;
+			return List.of();
 		} catch (RestClientException exception) {
-			return null;
+			return List.of();
 		}
 	}
 
