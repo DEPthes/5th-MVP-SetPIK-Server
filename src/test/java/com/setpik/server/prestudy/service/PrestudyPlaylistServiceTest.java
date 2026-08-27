@@ -26,6 +26,7 @@ import com.setpik.server.performance.repository.PerformanceMatchRepository;
 import com.setpik.server.performance.repository.PerformanceRepository;
 import com.setpik.server.playlist.client.SpotifyPlaylistClient;
 import com.setpik.server.playlist.client.SpotifyPlaylistApiException;
+import com.setpik.server.playlist.client.dto.SpotifyTrackSnapshot;
 import com.setpik.server.playlist.domain.PlaylistTrack;
 import com.setpik.server.playlist.domain.Track;
 import com.setpik.server.playlist.domain.TrackArtist;
@@ -245,8 +246,11 @@ class PrestudyPlaylistServiceTest {
 		when(spotifyArtist.getArtistId()).thenReturn(76L);
 		when(spotifyArtist.getSpotifyArtistId()).thenReturn("spotify-yena");
 		Track originalTrack = mock(Track.class);
+		Track spotifyTrack = mock(Track.class);
 		when(originalTrack.getTrackId()).thenReturn(4001L);
 		when(originalTrack.getTrackName()).thenReturn("YENA Song");
+		when(spotifyTrack.getTrackId()).thenReturn(4002L);
+		when(spotifyTrack.getTrackName()).thenReturn("YENA New Song");
 
 		when(playlistAnalysisRepository.findByAnalysisIdAndUserId(501L, 1L))
 			.thenReturn(Optional.of(analysis));
@@ -268,6 +272,14 @@ class PrestudyPlaylistServiceTest {
 		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
 		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
 			.thenReturn(List.of(new TrackArtist(4001L, 76L, (short) 1)));
+		stubConnectedSpotifyAccount();
+		when(spotifyPlaylistClient.fetchRepresentativeTracks(
+			"access-token", "spotify-yena", "최예나", 20))
+			.thenReturn(List.of(new SpotifyTrackSnapshot(
+				"spotify-new", "YENA New Song", "Album", null, null, null,
+				180000, true, null, List.of())));
+		when(trackRepository.findBySpotifyTrackId("spotify-new"))
+			.thenReturn(Optional.of(spotifyTrack));
 
 		var result = service.getCandidates(1L, 1001L, 501L);
 
@@ -275,8 +287,11 @@ class PrestudyPlaylistServiceTest {
 			assertThat(candidate.artistId()).isEqualTo(838L);
 			assertThat(candidate.artistName()).isEqualTo("최예나");
 			assertThat(candidate.isFromOriginalPlaylist()).isTrue();
-			assertThat(candidate.candidateTracks()).singleElement()
-				.satisfies(track -> assertThat(track.trackId()).isEqualTo(4001L));
+			assertThat(candidate.candidateTracks())
+				.extracting(track -> track.trackId(), track -> track.sourceType())
+				.containsExactly(
+					org.assertj.core.groups.Tuple.tuple(4001L, "ORIGINAL_PLAYLIST"),
+					org.assertj.core.groups.Tuple.tuple(4002L, "MATCHED_ARTIST"));
 		});
 	}
 
@@ -310,6 +325,7 @@ class PrestudyPlaylistServiceTest {
 		when(trackRepository.findAllById(List.of(4001L))).thenReturn(List.of(originalTrack));
 		when(trackArtistRepository.findByTrackIdInOrderByTrackIdAscArtistOrderAsc(List.of(4001L)))
 			.thenReturn(List.of(new TrackArtist(4001L, 75L, (short) 1)));
+		stubConnectedSpotifyAccount();
 
 		var result = service.getCandidates(1L, 1001L, 501L);
 
@@ -399,5 +415,14 @@ class PrestudyPlaylistServiceTest {
 		return new PlaylistAnalysis(
 			userId, playlistId, "spotify-playlist", "Playlist", null,
 			2, 2, AnalysisStatus.COMPLETED, null);
+	}
+
+	private void stubConnectedSpotifyAccount() {
+		SpotifyAccount account = mock(SpotifyAccount.class);
+		when(account.getConnectionStatus()).thenReturn(ConnectionStatus.CONNECTED);
+		when(account.getTokenExpiresAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 20, 0));
+		when(account.getAccessTokenEncrypted()).thenReturn("encrypted-token");
+		when(spotifyAccountRepository.findByUserId(1L)).thenReturn(Optional.of(account));
+		when(tokenCipher.decrypt("encrypted-token")).thenReturn("access-token");
 	}
 }

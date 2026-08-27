@@ -235,23 +235,26 @@ public class PrestudyPlaylistService {
 		for (EffectiveArtist artist : lineupArtists) {
 			List<Track> originalTracks = originalTracks(artist, originalTracksByArtist);
 			boolean fromOriginal = !originalTracks.isEmpty();
-			List<PrestudyCandidateResponse.TrackCandidate> candidateTracks;
-			if (fromOriginal) {
-                candidateTracks = originalTracks.stream()
-                .limit(MAX_CANDIDATE_TRACKS_PER_ARTIST)
-                .map(track -> new PrestudyCandidateResponse.TrackCandidate(
-                    track.getTrackId(), track.getTrackName(), SourceType.ORIGINAL_PLAYLIST.name(),
-                    track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
-                    track.getPreviewUrl(), track.getDurationMs()))
-                .toList();
-            } else if (artist.spotifyArtistId() == null || artist.spotifyArtistId().isBlank()) {
-                candidateTracks = List.of();
-            } else {
-             if (accessToken == null) {
-                accessToken = resolveAccessToken(findConnectedSpotifyAccount(userId));
-            }
-                candidateTracks = buildRepresentativeTrackCandidate(accessToken, artist);
-            }
+			LinkedHashMap<Long, PrestudyCandidateResponse.TrackCandidate> candidatesByTrackId =
+				new LinkedHashMap<>();
+			originalTracks.stream()
+				.limit(MAX_CANDIDATE_TRACKS_PER_ARTIST)
+				.map(track -> toTrackCandidate(track, SourceType.ORIGINAL_PLAYLIST))
+				.forEach(candidate -> candidatesByTrackId.putIfAbsent(candidate.trackId(), candidate));
+
+			if (artist.spotifyArtistId() != null && !artist.spotifyArtistId().isBlank()
+				&& candidatesByTrackId.size() < MAX_CANDIDATE_TRACKS_PER_ARTIST) {
+				if (accessToken == null) {
+					accessToken = resolveAccessToken(findConnectedSpotifyAccount(userId));
+				}
+				buildRepresentativeTrackCandidates(accessToken, artist).stream()
+					.forEach(candidate -> candidatesByTrackId.putIfAbsent(
+						candidate.trackId(), candidate));
+			}
+			List<PrestudyCandidateResponse.TrackCandidate> candidateTracks = candidatesByTrackId.values()
+				.stream()
+				.limit(MAX_CANDIDATE_TRACKS_PER_ARTIST)
+				.toList();
 			artists.add(new PrestudyCandidateResponse.ArtistCandidate(
 				artist.displayArtistId(), artist.artistName(), fromOriginal, candidateTracks));
 		}
@@ -373,7 +376,7 @@ public class PrestudyPlaylistService {
 		return List.copyOf(tracks.values());
 	}
 
-	private List<PrestudyCandidateResponse.TrackCandidate> buildRepresentativeTrackCandidate(
+	private List<PrestudyCandidateResponse.TrackCandidate> buildRepresentativeTrackCandidates(
 		String accessToken,
 		EffectiveArtist artist
 	) {
@@ -404,6 +407,16 @@ public class PrestudyPlaylistService {
 				track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
 				track.getPreviewUrl(), track.getDurationMs());
 		}).toList();
+	}
+
+	private PrestudyCandidateResponse.TrackCandidate toTrackCandidate(
+		Track track,
+		SourceType sourceType
+	) {
+		return new PrestudyCandidateResponse.TrackCandidate(
+			track.getTrackId(), track.getTrackName(), sourceType.name(),
+			track.getAlbumName(), track.getAlbumImageUrl(), track.getSpotifyTrackUrl(),
+			track.getPreviewUrl(), track.getDurationMs());
 	}
 
 	private List<EffectiveArtist> resolveEffectiveArtists(
